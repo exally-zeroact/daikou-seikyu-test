@@ -72,10 +72,13 @@ describe("★【テスト】の代行請求アプリが、テストの倉庫だ�
       const wrong = found.filter((x) => x.ref !== TEST_REF);
       const toProd = found.filter((x) => x.ref === PROD_REF);
       expect(
-        wrong,
-        "★別の倉庫を見ている＝開いても中身が空になり、司さんが自分の画面に入れなくなる★\n" +
-          "  先にテスト用の家を建ててから切り替えること。"
+        toProd,
+        "★テストが本番の倉庫を見ている＝テストのつもりで司さんの請求データ(明細1105件)を触る★\n" +
+          "  ここは【テスト】。見てよいのは DB-test だけ。"
       ).toEqual([]);
+      expect(wrong, "★テストの倉庫(DB-test)以外を見ている＝出る数字が本物でなくなる★").toEqual(
+        []
+      );
     });
   });
 

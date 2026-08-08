@@ -1,4 +1,6 @@
-# このホスト（exally-test.vercel.app）で何が生きているか
+# このホスト（daikou-seikyu-test.vercel.app＝★テスト★）で何が生きているか
+
+※ 旧 exally-test.vercel.app は ★名前に -test と入っているが中身は本番★。この文書はテスト側の物です。
 
 作成 2026-08-04
 

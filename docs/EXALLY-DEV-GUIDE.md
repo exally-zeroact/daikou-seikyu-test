@@ -17,7 +17,8 @@ Exally（給与明細・請求書・見積書・スプレッドシート `book.h
 4. ファイルを直して保存  →  開いている画面が数秒で自動更新
 ```
 
-- 急がないなら テストURL `exally-test.vercel.app` でもOK（push → 1〜2分で自動デプロイ）。違いは反映速度だけ。
+- 急がないなら テストURL `daikou-seikyu-test.vercel.app` でもOK（push → 1〜2分で自動デプロイ）。違いは反映速度だけ。
+  ※ ★`exally-test.vercel.app` は名前に -test と入っているが 中身は本番★。テストのつもりで開かない。
 
 ### A-2. 役割分担（手で打つ作業をなくす）
 
@@ -144,7 +145,7 @@ git commit ──→ pre-commit: 触ったファイルを自動整形
 git push  ──→ pre-push: npm test(緑のみ通過)
    │
    ├─→ GitHub Actions CI: lint + vitest + E2E をクラウド再検証
-   └─→ Vercel: 1〜2分で自動デプロイ → exally-test.vercel.app
+   └─→ Vercel: 1〜2分で自動デプロイ → daikou-seikyu-test.vercel.app
 ```
 
 ### C-3. URL早見
@@ -152,7 +153,7 @@ git push  ──→ pre-push: npm test(緑のみ通過)
 | 用途                | URL                             | 反映              |
 | ------------------- | ------------------------------- | ----------------- |
 | ローカル即反映(dev) | http://localhost:5173/book.html | 保存で数秒        |
-| テスト(チーム確認)  | https://exally-test.vercel.app/ | push後1〜2分      |
+| テスト(チーム確認)  | https://daikou-seikyu-test.vercel.app/ | push後1〜2分      |
 | 本番                | https://exally.vercel.app/      | 1修正→実機確認→次 |
 
 ### C-4. コマンド早見
@@ -175,4 +176,4 @@ npm run check      # lint + test まとめて
 3. 新しい数式は formula-engine に1行足すだけで永久に自動チェック
 4. 大きい作業は「plan first」で設計を見せてもらってからGO
 
-最終更新: 2026-06-06 / 対象: exally-test
+最終更新: 2026-08-09 / 対象: daikou-seikyu-test（テスト）／本番は daikou-seikyu

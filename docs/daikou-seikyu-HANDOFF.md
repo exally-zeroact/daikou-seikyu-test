@@ -1,7 +1,9 @@
 # 代行請求システム（プロトタイプ）引き継ぎ
 
 最終更新: 2026-06-15 / リポジトリ: **Exally-test** / 最新コミット: `ef3cb27`
-URL（テスト本番）: https://exally-test.vercel.app/daikou-seikyu.html
+URL（このrepo＝テスト）: https://daikou-seikyu-test.vercel.app/daikou-seikyu.html
+本番: https://daikou-seikyu.vercel.app/daikou-seikyu.html
+※ 旧 exally-test.vercel.app は ★中身は本番★（名前に -test と入っているが本番）。消さない。
 
 ## これは何
 

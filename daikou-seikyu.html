@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-    <title>代行請求システム | Exally</title>
+    <!-- ★ホーム画面に置くとこの名前になる。Exally ではなく ダイコメ★ (2026-08-09) -->
+    <title>ダイコメ 代行請求</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap"
       rel="stylesheet"
@@ -406,11 +407,11 @@
         box-shadow: 0 1px 4px rgba(30, 80, 46, 0.06);
       }
       .app-logo {
-        font-family: "DM Mono", monospace;
+        /* ★事務所(dashboard.html)の .logo と同じ見え方に揃える★ (2026-08-09)
+           太字の日本語なので DM Mono は当てない（英字用の書体で、絵文字と釣り合わない）。 */
         font-size: 20px;
-        font-weight: 500;
-        color: #52b788;
-        letter-spacing: -0.5px;
+        font-weight: 800;
+        color: #0a5fd0; /* 事務所の --blue-d */
       }
       .app-logo-ja {
         font-size: 10px;
@@ -2643,8 +2644,10 @@
 
     <!-- ===== HEADER ===== -->
     <div class="app-header">
-      <span class="app-logo">Exally</span>
-      <span class="app-logo-ja">エクサリー</span>
+      <!-- ★司さん「ログイン画面がExally系のままやないか」(2026-08-09)★
+           入る前(ログイン画面)だけ直しても、入った先の一番上が Exally のままでは直っていない。
+           事務所(dashboard.html)と同じ「🚗 ダイコメ」に揃える。 -->
+      <span class="app-logo">🚗 ダイコメ</span>
       <span class="app-title" id="appTitle">代行請求</span>
     </div>
 
@@ -10038,6 +10041,24 @@
         if (!LOGIN) {
           LOGIN = ExallyLogin.mount({
             app: "代行請求",
+            // ★司さん「ログイン画面がExally系のままやないか」(2026-08-09)★
+            //   代行請求はダイコメの製品。事務所の「請求書 ↗」から来るので、
+            //   事務所(dashboard.html)と同じ「🚗 ダイコメ」・同じ青にする。
+            //   ★部品の既定は Exally の緑のまま★＝渡しているここだけが変わる。
+            brand: "🚗 ダイコメ",
+            brandSub: "", // 「エクサリー」は出さない
+            theme: {
+              accent: "#007aff", // 事務所の --blue
+              accentDark: "#0a5fd0", // 事務所の --blue-d
+              bg: "#f2f7ff", // 事務所の --bg
+              line: "#dbe7f7", // 事務所の --line
+              title: "#14243d", // 事務所の --ink
+              ink: "#14243d",
+              muted: "#5a6b82", // 事務所の --muted
+              link: "#0a5fd0",
+              danger: "#e0483d", // 事務所の --danger
+              shadow: "rgba(20,36,61,.10)",
+            },
             sb: SB,
             onLogin: function (user) {
               onLoggedIn(user);

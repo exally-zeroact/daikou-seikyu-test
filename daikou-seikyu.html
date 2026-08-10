@@ -509,7 +509,7 @@
       .fselect {
         appearance: none;
         -webkit-appearance: none;
-        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%233D9E72' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%23007AFF' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");
         background-repeat: no-repeat;
         background-position: right 12px center;
         padding-right: 30px;
@@ -2234,8 +2234,8 @@
         background: #ffffff;
         margin: 0 auto 18px;
         padding: 34px 38px;
-        border: 1px solid #d4eae0;
-        box-shadow: 0 4px 16px rgba(30, 80, 46, 0.1);
+        border: 1px solid #dbe7f7;
+        box-shadow: 0 4px 16px rgba(10, 95, 208, 0.1); /* = #0A5FD0 */
         color: #000000;
         font-size: 12px;
       }
@@ -2377,7 +2377,7 @@
       /* ヘッダーは縦線あり（枠で仕切る） */
       .sh-table th {
         border: 1px solid #000000;
-        background: #dcefe6;
+        background: #f2f7ff;
         text-align: center;
         font-weight: 700;
       }
@@ -2402,7 +2402,7 @@
         text-align: center;
       }
       .sh-table tr.tot td {
-        background: #dcefe6;
+        background: #f2f7ff;
         text-align: center;
         font-weight: 700;
       }
@@ -4037,9 +4037,10 @@
         var BOX = { top: THIN, bottom: THIN, left: THIN, right: THIN };
         var YEN = '"¥"#,##0';
         // ★PDFのミント配色（文字色）。色未指定セル（＝黒）を本文＝濃い緑にして「色がPDFと違う」を解消。
-        var C_TEXT = { rgb: "1A4A2E" }; // 本文・タイトル・宛名・金額（#2E7D54）
-        var C_LABEL = { rgb: "3D9E72" }; // 見出し・ラベル（#3d9e72）
-        var C_MUTED = { rgb: "7AA08C" }; // 補助文・自社情報・あいさつ（#7aa08c）
+        // ★SheetJS の rgb は「#」を書かない★ ＝ 濃い緑の見張りが素通りしていた場所（2026-08-10 に発見）
+        var C_TEXT = { rgb: "0A5FD0" }; // 本文・タイトル・宛名・金額（#0A5FD0 事務所の青）
+        var C_LABEL = { rgb: "007AFF" }; // 見出し・ラベル（#007AFF 事務所の強めの青）
+        var C_MUTED = { rgb: "5A6B82" }; // 補助文・自社情報・あいさつ（#5A6B82 事務所の弱い字）
         var aoa = [],
           styles = {},
           merges = [],
@@ -4190,11 +4191,11 @@
           if (headerStyle === "A") extraFooter += 4; // 対角ヘッダーは天マージン等で上部が高い
           PER = Math.max(12, 28 - extraFooter);
           var pageCount = Math.max(1, Math.ceil(allRows.length / PER));
-          var GREEN = { fgColor: { rgb: "DCEFE6" } };
+          var BAND = { fgColor: { rgb: "F2F2F2" } }; // クラシックの帯＝★白黒のまま★（ごく薄い灰）
           // ★デザイン分岐：elegant＝淡ミント＋横罫だけ／classic＝緑＋#808080全罫（PDFと一致）★
           var isElegant = (iss.pdfDesign || "elegant") === "elegant";
-          var HDR_FILL = isElegant ? { fgColor: { rgb: "EAF7F0" } } : GREEN;
-          var HRULE = { style: "thin", color: { rgb: isElegant ? "DCE8E2" : "808080" } };
+          var HDR_FILL = isElegant ? { fgColor: { rgb: "F2F7FF" } } : BAND;
+          var HRULE = { style: "thin", color: { rgb: isElegant ? "DBE7F7" : "808080" } };
 
           // ★複数ページは最終に「サマリーページ（ご請求金額＋ページ別内訳＋合計＋振込先）」を足す＝PDF同様。
           var hasSummary = pageCount > 1;
@@ -4428,7 +4429,7 @@
                   font: { bold: true, sz: 12, color: C_LABEL },
                   alignment: { horizontal: sc === sumAmt ? "right" : "left", vertical: "center" },
                   fill: HDR_FILL,
-                  border: isElegant ? { bottom: { style: "thin", color: { rgb: "52B788" } } } : BOX,
+                  border: isElegant ? { bottom: { style: "thin", color: { rgb: "007AFF" } } } : BOX,
                 });
               pageSubs.forEach(function (sub, si) {
                 var sr2 = blank();
@@ -4471,7 +4472,7 @@
                   font: { bold: true, sz: 12, color: C_LABEL }, // 表ヘッダー sz12（PDFと同じ中緑）
                   alignment: { horizontal: "center", vertical: "center" },
                   fill: HDR_FILL,
-                  border: isElegant ? { bottom: { style: "thin", color: { rgb: "52B788" } } } : BOX,
+                  border: isElegant ? { bottom: { style: "thin", color: { rgb: "007AFF" } } } : BOX,
                 });
 
               // 明細22行（全幅・空行も枠線）
@@ -10046,7 +10047,7 @@
             //   事務所(dashboard.html)と同じ「🚗 ダイコメ」・同じ青にする。
             //   ★部品の既定は Exally の緑のまま★＝渡しているここだけが変わる。
             brand: "🚗 ダイコメ",
-            brandSub: "", // 「エクサリー」は出さない
+            brandSub: "", // 製品名の右の小さい字は出さない（ダイコメだけを出す）
             theme: {
               accent: "#007aff", // 事務所の --blue
               accentDark: "#0a5fd0", // 事務所の --blue-d

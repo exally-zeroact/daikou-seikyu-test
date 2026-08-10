@@ -246,17 +246,44 @@ describe("★PDF(invoice-pdf.js) の色は 注釈ではなく値で見る★", (
 //     2回目 rgb: "…" を見た                       → DCEFE6 / EAF7F0 を捕まえた
 //     3回目 でも rgb: isElegant ? "DCE8E2" : … は ★間に三項演算子が入る★ ので素通り
 //   → 名前も書き方も当てにせず、★HTMLの中の「6桁hexの文字列」を全部★ 見る。
-describe("★HTMLの中の 6桁hex文字列に 緑が1つも無い★", () => {
-  it('"XXXXXX" と書かれた色（Excelに渡る物を含む）が緑ではない', () => {
+describe("★配信するファイル1本まるごとに 緑が1つも無い★", () => {
+  // ★規則(<style>)と 文字列リテラルだけ見ても まだ足りなかった★
+  //   実配信を取得して数えたら #D6E6DD / #5F8A72 が出た。どちらも
+  //   ★JSが組み立てる HTML の中の 直書き style="…" ★ で、
+  //   '…border-top:1px dashed #d6e6dd;…' のように 長い文字列の途中に埋まっていた。
+  //   → 場所を当てるのをやめ、★ファイルを1行ずつ 端から端まで★ 値で見る。
+  it("daikou-seikyu.html の全行（直書き style= も含む）に緑が無い", () => {
     const hit = [];
-    for (const m of HTML.matchAll(/"([0-9A-Fa-f]{6})"/g)) {
-      const c = m[1].toUpperCase();
-      if (c === "217346") continue; // Excelを表す色（Exallyの色ではない）
-      if (EXALLY_GREEN.includes(c) || looksGreen(c)) {
-        hit.push('"' + m[1] + '" (' + HTML.slice(0, m.index).split("\n").length + "行目)");
+    HTML.split("\n").forEach((L, i) => {
+      for (const c of colorsIn(L)) {
+        if (c === "217346") continue; // Excelを表す色（Exallyの色ではない）
+        if (EXALLY_GREEN.includes(c) || looksGreen(c)) hit.push(i + 1 + "行目 #" + c);
       }
+    });
+    expect(hit, "★緑が残っている:\n  " + hit.join("\n  ")).toEqual([]);
+  });
+
+  it("invoice-pdf.js / meisai-engine.js の全行に緑が無い", () => {
+    const hit = [];
+    for (const f of ["invoice-pdf.js", "meisai-engine.js"]) {
+      fs.readFileSync(path.join(ROOT, f), "utf8")
+        .split("\n")
+        .forEach((L, i) => {
+          for (const c of colorsIn(L)) {
+            if (EXALLY_GREEN.includes(c) || looksGreen(c)) hit.push(f + ":" + (i + 1) + " #" + c);
+          }
+        });
     }
-    expect(hit, "★緑が残っている: " + hit.join(" / ")).toEqual([]);
+    expect(hit, "★緑が残っている:\n  " + hit.join("\n  ")).toEqual([]);
+  });
+
+  // ★exally-login.js だけは除く（理由を書く）★
+  //   ここの緑は「何も渡さなければ 今までの Exally のまま」という f629b09 の設計で、
+  //   tests/login-brand.test.js が ★その既定を守る側★ の試験を持っている。
+  //   代行請求は青を明示的に渡すので画面には出ない。変えるなら別の判断が要る。
+  it("exally-login.js の既定色は 今までのまま（設計どおり・変わっていない事を固定）", () => {
+    const js = fs.readFileSync(path.join(ROOT, "exally-login.js"), "utf8");
+    expect(js, "★既定色を変えている＝他アプリの見た目が動く★").toContain('accent: "#52b788"');
   });
 });
 

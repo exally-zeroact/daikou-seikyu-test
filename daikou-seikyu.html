@@ -6481,7 +6481,7 @@
         // ★左=小・右=大のスライダー（押しながら左右に引っ張って調整・離した時に保存）。
         var dis = classic ? " disabled" : "";
         var h =
-          '<div class="ep-row" style="margin-top:8px;border-top:1px dashed #d6e6dd;padding-top:10px;align-items:flex-start">' +
+          '<div class="ep-row" style="margin-top:8px;border-top:1px dashed #dbe7f7;padding-top:10px;align-items:flex-start">' +
           '<span class="l">文字の大きさ</span>' +
           '<div class="ep-fs">' +
           '<input type="range" class="ep-fs-range" min="0.85" max="1.4" step="0.05" value="' +
@@ -7120,13 +7120,13 @@
             // フォールバック（範囲フィルタ無し）＝従来どおり全部表示。
             h = '<div class="ph">↔️ 揃え</div>';
             h +=
-              '<div class="note" style="font-weight:800;color:#5f8a72;margin-bottom:2px">あいさつ文</div>';
+              '<div class="note" style="font-weight:800;color:#5a6b82;margin-bottom:2px">あいさつ文</div>';
             h += _algGroup("選択範囲を", _av(s.posLead), "editSetLeadPos");
             h +=
-              '<div class="note" style="font-weight:800;color:#5f8a72;margin:10px 0 2px">ご請求金額</div>';
+              '<div class="note" style="font-weight:800;color:#5a6b82;margin:10px 0 2px">ご請求金額</div>';
             h += _algGroup("選択範囲を", _av(s.posGrand), "editSetGrandPos");
             h +=
-              '<div class="note" style="font-weight:800;color:#5f8a72;margin:10px 0 2px">会社名・住所（自社）</div>' +
+              '<div class="note" style="font-weight:800;color:#5a6b82;margin:10px 0 2px">会社名・住所（自社）</div>' +
               (isEle
                 ? ""
                 : '<div class="note" style="margin-top:0">※クラシックは右固定（エレガントで変わります）。</div>');

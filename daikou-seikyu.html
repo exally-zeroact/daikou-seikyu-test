@@ -3576,6 +3576,18 @@
           .select("config")
           .eq("user_id", CURRENT_ACCOUNT)
           .maybeSingle();
+        // ★番号の台帳を読む（凍結した番号はここから出す）★
+        INVOICE_NO = {};
+        try {
+          var no = await SB.from("invoice_no").select("month, company, invoice_no");
+          if (no.error) cloudErr("請求番号の読込", no.error);
+          else
+            (no.data || []).forEach(function (r) {
+              INVOICE_NO[invNoKey(r.month, r.company)] = r.invoice_no;
+            });
+        } catch (e) {
+          cloudErr("請求番号の読込", e);
+        }
         if (!i.error && i.data && i.data.config) ISSUER_SETTINGS[CURRENT_ACCOUNT] = i.data.config;
         if (!ISSUER_SETTINGS[CURRENT_ACCOUNT]) ISSUER_SETTINGS[CURRENT_ACCOUNT] = defaultIssuer();
         migrateRegno(ISSUER_SETTINGS[CURRENT_ACCOUNT]); // ★登録番号を専用の欄へ（1度だけ・紙は変わらない）★
@@ -6691,14 +6703,18 @@
             toast("該当する明細がありません");
             return null;
           }
+          // ★番号は1回だけ決めて 紙と控えの両方に同じ物を使う★
+          //   別々に取ると「紙の番号と控えの番号が違う」が起きる（実際に一度そう書いてしまった）
+          var _no = await issueInvoiceNo(month, onlyCo); // ★決めるのはここ1回だけ★
           bytes = await InvoicePDF.buildOne(
             MASTER,
             onlyCo,
             rows,
             month,
             issuerForEngine(onlyCo),
-            MeisaiEngine.invoiceNoFor(MASTER, CURRENT_ACCOUNT, month, onlyCo)
+            _no
           );
+          await saveInvoiceCopy(month, onlyCo, rows, issuerForEngine(onlyCo), _no);
           fname = "請求書_" + month + "_" + onlyCo + ".pdf";
         } else {
           bytes = await InvoicePDF.buildMonth(
@@ -8027,6 +8043,84 @@
    自社情報（発行者・振込先・判子）＝請求書フォーマット定義の残りピース
    アカウント単位で保存。エンジンの issuer 形へ変換して請求書に渡す。
    =================================================================== */
+      /* ===== A 請求書を保存する（発行した瞬間に写しを残す）===========================
+         ★なぜ★ 本番で数えたら 控えを置く棚が1つも無く、PDFは端末に落とすだけだった。
+           請求書は毎回 明細から計算し直すので、★明細を直すと過去に渡した紙と食い違う★。
+           実測: 12,000→9,000 に直して同じ月を出すと 請求額も 9,000 に変わった。
+         ★2つの棚★
+           invoices   … 発行の控え（出すたび1行 積む）
+           invoice_no … 番号の台帳（月×会社に1つ）★一度決めた番号は動かさない★
+         ★凍結しても 今の番号は1つも変わらない★
+           台帳に無い間は 今までと同じ計算（invoiceNoFor）を返す＝見えている番号はそのまま。
+      ============================================================================= */
+      var INVOICE_NO = {}; // "YYYY-MM|会社名" -> "2026-05-03"
+      function invNoKey(month, co) {
+        return month + "|" + co;
+      }
+      // 画面に出す番号（読むだけ・書かない）。台帳に在ればそれ、無ければ今までどおりの計算。
+      function invoiceNoFrozen(month, co) {
+        var k = invNoKey(month, co);
+        if (INVOICE_NO[k]) return INVOICE_NO[k];
+        return MeisaiEngine.invoiceNoFor(MASTER, CURRENT_ACCOUNT, month, co);
+      }
+      /* ★番号を決めるのは この1本だけ★
+         決める所が2つに割れていると、片方を壊しても もう片方が庇って
+         ★試験が赤にならない★（実際にそう書いてしまい、わざと壊しても緑のままだった）。
+         「台帳に在ればそれを返す／無ければ今の並びで決めて台帳に止める」を ここだけで行う。 */
+      async function issueInvoiceNo(month, co) {
+        var k = invNoKey(month, co);
+        if (INVOICE_NO[k]) return INVOICE_NO[k]; // ★一度 決めた番号は動かさない★
+        var no = MeisaiEngine.invoiceNoFor(MASTER, CURRENT_ACCOUNT, month, co);
+        INVOICE_NO[k] = no;
+        if (SB && CURRENT_ACCOUNT) {
+          try {
+            var r = await SB.from("invoice_no").upsert(
+              { user_id: CURRENT_ACCOUNT, month: month, company: co, invoice_no: no },
+              { onConflict: "user_id,month,company" }
+            );
+            if (r && r.error) cloudErr("請求番号の保存", r.error);
+          } catch (e) {
+            cloudErr("請求番号の保存", e);
+          }
+        }
+        return no;
+      }
+      // ★発行の控えを1行 積む★（明細・自社情報・様式の写しつき）
+      async function saveInvoiceCopy(month, co, rows, iss, no) {
+        var total = rows.reduce(function (t, r) {
+          return t + (Number(r.金額) || 0);
+        }, 0);
+        var rec = {
+          user_id: CURRENT_ACCOUNT,
+          month: month,
+          company: co,
+          invoice_no: no,
+          total: total,
+          tax: MeisaiEngine.utils.tax10(total),
+          rows_json: rows.map(function (r) {
+            var o = {};
+            MeisaiEngine.FIELD_DEFS.forEach(function (f) {
+              o[f.key] = r[f.key];
+            });
+            return o;
+          }),
+          issuer_json: { lines: iss.lines, bank: iss.bank, regno: regnoOf(currentIssuer()) },
+          design_json: {
+            templateId: iss.templateId,
+            items: (MASTER[co] && MASTER[co].items) || [],
+            widths: (MASTER[co] && MASTER[co].widths) || {},
+            aligns: (MASTER[co] && MASTER[co].aligns) || {},
+          },
+        };
+        if (!SB || !CURRENT_ACCOUNT) return rec;
+        try {
+          var r = await SB.from("invoices").insert(rec);
+          if (r && r.error) cloudErr("請求書の控え保存", r.error);
+        } catch (e) {
+          cloudErr("請求書の控え保存", e);
+        }
+        return rec;
+      }
       var ISSUER_SETTINGS = {};
       // 自社情報は「自由な行」。要らない行は消す、足したい行は足す＝定義駆動。
       function defaultIssuer() {

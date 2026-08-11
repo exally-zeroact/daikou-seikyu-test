@@ -59,6 +59,29 @@
   function tax10(total) {
     return Math.round((total * 10) / 110);
   } // 内税10%の内消費税
+
+  /* ★請求の合計は ここだけで足す★（2026-08-11）
+     それまで ★4か所が別々に足していた★:
+       invoice-pdf.js の tax10（エレガント/クラシックで2回 使用）
+       daikou-seikyu.html の Excel の合計欄
+       daikou-seikyu.html の tax10（★誰も呼んでいない重複★）
+     今は答えが同じでも、片方だけ直すと ★同じ請求書の合計が紙とExcelで食い違う★。
+     （請求書アプリは同じ型で ★11,000円 少なく振り込まれる★所まで行った）
+     ★文言は様式ごとに違う（エレガント=消費税（10%）／クラシック=消費税（10%・内税））ので
+       ここでは数字だけを返し、見出しは今までどおり各様式が持つ＝紙は1文字も変わらない。★ */
+  function invoiceTotals(rows, iss) {
+    var grand = (rows || []).reduce(function (t, r) {
+      return t + (Number(r && r.金額) || 0);
+    }, 0);
+    var soto = !!(iss && iss.taxMode === "soto"); // 外税（既定は内税）
+    var tax = soto ? Math.round(grand * 0.1) : tax10(grand);
+    return {
+      shoukei: grand, // 小計
+      zei: tax, // 消費税
+      goukei: soto ? grand + tax : grand, // 合計
+      soto: soto,
+    };
+  }
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;")
@@ -506,6 +529,7 @@
     buildMonth: buildMonth,
     buildWorkbookData: buildWorkbookData,
     invoiceNoFor: invoiceNoFor,
+    invoiceTotals: invoiceTotals, // ★合計を足すのはここだけ★
     listInvoices: listInvoices,
     utils: {
       yen: yen,

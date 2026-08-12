@@ -69,6 +69,59 @@
      （請求書アプリは同じ型で ★11,000円 少なく振り込まれる★所まで行った）
      ★文言は様式ごとに違う（エレガント=消費税（10%）／クラシック=消費税（10%・内税））ので
        ここでは数字だけを返し、見出しは今までどおり各様式が持つ＝紙は1文字も変わらない。★ */
+  /* ★繰越（会社ごとに選べる）★ 2026-08-11
+     並べる順（指示役 2026-08-11 が決めた形）:
+       今回請求額 → ＋前回繰越額 → 合計請求額 → −ご入金額 → 今回お支払額
+     ・★前回繰越額★ ＝ 当月より前の（請求 − 入金）の残り（＝まだ入っていない分）
+     ・★ご入金額★   ＝ 当月ぶんとして受け取った入金
+       ⇒ 前回繰越は過去の入金を引いた後の数なので ★二重に引かない★
+     ★0円と書かない★（指示役の合格条件）
+       前回の請求が1件も無い     → kurikoshi=null・riyu="前回の請求はありません"
+       入金が読めない（不明）    → nyukin=null・riyu に "入金は未確認"
+       ＝「無い」と「0円」は別物。0円と書くと 払い忘れと区別が付かなくなる。
+     kako = [{ month, seikyu, nyukin }]  seikyu/nyukin が null なら「不明」 */
+  function carryoverOf(kako, konkaiSeikyu, konkaiNyukin) {
+    var mae = (kako || []).filter(function (k) {
+      return k && k.month;
+    });
+    var riyu = [];
+    var kurikoshi = null;
+    if (!mae.length) {
+      riyu.push("前回の請求はありません");
+    } else if (
+      mae.some(function (k) {
+        return k.seikyu == null;
+      })
+    ) {
+      riyu.push("前回の請求額が読めません"); // 控えが無い月が混ざっている
+    } else if (
+      mae.some(function (k) {
+        return k.nyukin == null;
+      })
+    ) {
+      riyu.push("入金は未確認");
+    } else {
+      kurikoshi = mae.reduce(function (t, k) {
+        return t + (Number(k.seikyu) || 0) - (Number(k.nyukin) || 0);
+      }, 0);
+    }
+    var konkai = Number(konkaiSeikyu) || 0;
+    var nyukin = konkaiNyukin == null ? null : Number(konkaiNyukin) || 0;
+    if (konkaiNyukin == null) riyu.push("入金は未確認");
+    var goukeiSeikyu = kurikoshi == null ? null : konkai + kurikoshi;
+    var oshiharai = goukeiSeikyu == null || nyukin == null ? null : goukeiSeikyu - nyukin;
+    return {
+      konkai: konkai, // 今回請求額
+      kurikoshi: kurikoshi, // 前回繰越額（null＝出せない）
+      goukeiSeikyu: goukeiSeikyu, // 合計請求額
+      nyukin: nyukin, // ご入金額（null＝未確認）
+      oshiharai: oshiharai, // 今回お支払額（null＝出せない）
+      riyu: riyu.filter(function (x, i, a) {
+        return a.indexOf(x) === i;
+      }),
+    };
+  }
+
   function invoiceTotals(rows, iss) {
     var grand = (rows || []).reduce(function (t, r) {
       return t + (Number(r && r.金額) || 0);
@@ -530,6 +583,7 @@
     buildWorkbookData: buildWorkbookData,
     invoiceNoFor: invoiceNoFor,
     invoiceTotals: invoiceTotals, // ★合計を足すのはここだけ★
+    carryoverOf: carryoverOf, // ★繰越もここだけ★
     listInvoices: listInvoices,
     utils: {
       yen: yen,

@@ -56,9 +56,13 @@
   function inMonth(iso, month) {
     return iso && month && iso.slice(0, 7) === month;
   }
+  /* ★消費税の率は ここ1つ★（2026-08-12 指示役）
+     率を文字で書くと、率が変わった日・軽減税率が混ざった日に ★言葉だけ嘘になる★。
+     計算にも 紙の文言にも ★同じ TAX_RATE を使う★＝"10%" と書かない。 */
+  var TAX_RATE = 10;
   function tax10(total) {
-    return Math.round((total * 10) / 110);
-  } // 内税10%の内消費税
+    return Math.round((total * TAX_RATE) / (100 + TAX_RATE));
+  } // 内税の内消費税（既定の率）
 
   /* ★請求の合計は ここだけで足す★（2026-08-11）
      それまで ★4か所が別々に足していた★:
@@ -126,14 +130,45 @@
     var grand = (rows || []).reduce(function (t, r) {
       return t + (Number(r && r.金額) || 0);
     }, 0);
-    var soto = !!(iss && iss.taxMode === "soto"); // 外税（既定は内税）
-    var tax = soto ? Math.round(grand * 0.1) : tax10(grand);
+    // ★言い方は1つ★：会社マスタに入っている値（"外税"）をそのまま見る。
+    //   別の綴り（"soto"等）を足すと、書く側と読む側で語彙がずれて必ず事故る。
+    var soto = !!(iss && iss.taxMode === "外税");
+    var tax = soto
+      ? Math.round((grand * TAX_RATE) / 100)
+      : Math.round((grand * TAX_RATE) / (100 + TAX_RATE));
     return {
       shoukei: grand, // 小計
       zei: tax, // 消費税
       goukei: soto ? grand + tax : grand, // 合計
       soto: soto,
+      rate: TAX_RATE, // ★文言はこの数から組み立てる★
     };
+  }
+
+  /* ★合計欄の言葉は ここ1つで組み立てる★（2026-08-12 指示役の裁定）
+     ・★率は計算に使った値から作る★（"10%" と直書きしない）
+     ・★内税/外税は 実際の設定から作る★（固定の既定にしない＝外税の紙が嘘をつかない）
+     ・会社ごとの言い換え（MASTER[会社].labels）を ★その上に被せる★
+       ＝仕組みを増やさない。何も入れなければ 下の既定が出る。
+     直す前は 同じ請求書なのに 出し方で4通りに割れていた:
+       "消費税（10%・内税）" / "消費税（10%）" / "消費税(10%)" / "消費税"
+       （★半角カッコと全角カッコまで混ざっていた★） */
+  function totalsLabels(m, iss) {
+    var soto = !!(iss && iss.taxMode === "外税");
+    var kihon = {
+      小計: "小計",
+      消費税: "消費税（" + TAX_RATE + "%・" + (soto ? "外税" : "内税") + "）",
+      合計: "合計",
+      前回繰越額: "前回繰越額",
+      合計請求額: "合計請求額",
+      ご入金額: "ご入金額",
+      今回お支払額: "今回お支払額",
+    };
+    var L = (m && m.labels) || {};
+    Object.keys(kihon).forEach(function (k) {
+      if (L[k]) kihon[k] = L[k]; // 会社ごとの言い換えを被せる
+    });
+    return kihon;
   }
   function esc(s) {
     return String(s == null ? "" : s)
@@ -238,7 +273,9 @@
       '<tr><td class="k">小計</td><td class="v">' +
       yen(pageTotal) +
       "</td></tr>" +
-      '<tr><td class="k">消費税（10%）</td><td class="v">' +
+      '<tr><td class="k">' +
+      totalsLabels(m, iss).消費税 +
+      '</td><td class="v">' +
       yen(tax10(pageTotal)) +
       "</td></tr>" +
       '<tr><td class="k' +
@@ -584,6 +621,8 @@
     invoiceNoFor: invoiceNoFor,
     invoiceTotals: invoiceTotals, // ★合計を足すのはここだけ★
     carryoverOf: carryoverOf, // ★繰越もここだけ★
+    totalsLabels: totalsLabels, // ★合計欄の言葉もここだけ★
+    TAX_RATE: TAX_RATE,
     listInvoices: listInvoices,
     utils: {
       yen: yen,

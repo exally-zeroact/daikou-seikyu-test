@@ -4625,22 +4625,27 @@
               });
               var b10 = Math.round(t10s / 1.1),
                 b8 = Math.round(t8s / 1.08);
-              tot.push({ l: "10%対象", v: b10 });
-              tot.push({ l: "消費税(10%)", v: t10s - b10 });
-              tot.push({ l: "8%対象", v: b8 });
-              tot.push({ l: "消費税(8%)", v: t8s - b8 });
+              // ★率は文字で書かず 計算に使った数から組み立てる★（2026-08-12 指示役）
+              //   ここは半角カッコ "消費税(10%)" で、紙の全角カッコと違っていた＝4通りに割れた原因の1つ
+              var _r10 = 10,
+                _r8 = 8;
+              tot.push({ l: _r10 + "%対象", v: b10 });
+              tot.push({ l: "消費税（" + _r10 + "%）", v: t10s - b10 });
+              tot.push({ l: _r8 + "%対象", v: b8 });
+              tot.push({ l: "消費税（" + _r8 + "%）", v: t8s - b8 });
               baseGoukei = t10s + t8s;
               tot.push({ l: "合計", v: baseGoukei, big: 1, line: 1 });
             } else {
               // 内税:小計=合計=税込/消費税=内税分。外税:小計=税抜/消費税=小計×10%/合計=税込。
               // ★合計は請求全体(grand)で計算（最終ページにのみ出す＝PDF同様。途中ページはページ小計）。
-              // ★合計はエンジン1本から★（紙と別々に足さない）
-              var _et = MeisaiEngine.invoiceTotals(allRows, { taxMode: isSoto ? "soto" : "uchi" });
+              // ★合計も言葉も エンジン1本から★（紙と別々に足さない・別々に書かない）
+              var _et = MeisaiEngine.invoiceTotals(allRows, { taxMode: m.taxMode });
+              var _eL = MeisaiEngine.totalsLabels(m, { taxMode: m.taxMode });
               var pTax = _et.zei;
               baseGoukei = _et.goukei;
-              tot.push({ l: "小計", v: _et.shoukei });
-              tot.push({ l: isSoto ? "消費税（10%）" : "消費税", v: pTax });
-              tot.push({ l: "合計", v: baseGoukei, big: 1, line: 1 });
+              tot.push({ l: _eL.小計, v: _et.shoukei });
+              tot.push({ l: _eL.消費税, v: pTax });
+              tot.push({ l: _eL.合計, v: baseGoukei, big: 1, line: 1 });
             }
             // 源泉徴収（個人宛）：税抜×10.21%を差引いてお振込金額
             if (m.withholding) {

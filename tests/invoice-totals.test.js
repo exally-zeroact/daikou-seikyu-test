@@ -54,11 +54,37 @@ describe("★合計の式（内税10%）★", () => {
     expect(t.zei, "★行ごとに丸めて足している（10+10=20 になっている）★").toBe(19); // 2100/110=19.09→19
   });
 
-  it("外税（taxMode=soto）は 税抜×10% を足す", () => {
-    const t = Engine.invoiceTotals(rows(1000), { taxMode: "soto" });
+  it("外税（会社マスタの taxMode=\"外税\"）は 税抜×率 を足す", () => {
+    const t = Engine.invoiceTotals(rows(1000), { taxMode: "外税" });
     expect(t.shoukei).toBe(1000);
     expect(t.zei).toBe(100);
     expect(t.goukei).toBe(1100);
+    expect(t.soto).toBe(true);
+  });
+
+  // ★言い方は1つだけ★（書く側と読む側で語彙がずれると必ず事故る）
+  //   実際に一度 "soto" と書いて渡してしまい、会社マスタの "外税" と食い違っていた。
+  it("★別の綴りは 外税として扱わない（内税のまま）★", () => {
+    for (const ng of ["soto", "SOTO", "外税 ", "外 税", ""]) {
+      const t = Engine.invoiceTotals(rows(1000), { taxMode: ng });
+      expect(t.soto, `★"${ng}" を外税として受け付けている★`).toBe(false);
+      expect(t.goukei, `★"${ng}" で合計が変わっている★`).toBe(1000);
+    }
+  });
+
+  it("★率は1か所から出る（計算と文言が同じ数を使う）★", () => {
+    expect(Engine.TAX_RATE).toBe(10);
+    const uchi = Engine.totalsLabels({}, {});
+    const soto = Engine.totalsLabels({}, { taxMode: "外税" });
+    expect(uchi.消費税).toBe("消費税（" + Engine.TAX_RATE + "%・内税）");
+    expect(soto.消費税).toBe("消費税（" + Engine.TAX_RATE + "%・外税）");
+  });
+
+  it("★会社ごとの言い換えが 上に被さる★", () => {
+    const L = Engine.totalsLabels({ labels: { 消費税: "税", 今回お支払額: "お振込み額" } }, {});
+    expect(L.消費税).toBe("税");
+    expect(L.今回お支払額).toBe("お振込み額");
+    expect(L.小計, "言い換えていない物まで変わっている").toBe("小計");
   });
 
   it("金額が空・文字でも落ちない（0として足す）", () => {

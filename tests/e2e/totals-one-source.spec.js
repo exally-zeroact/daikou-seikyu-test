@@ -147,4 +147,49 @@ test("★紙とExcelとエンジンの合計が1円も違わない★", async ({
   expect(vals, `★Excelの小計が違う（エンジン=${engine.shoukei}）`).toContain(engine.shoukei);
   expect(vals, `★Excelの消費税が違う（エンジン=${engine.zei}）`).toContain(engine.zei);
   expect(vals, `★Excelの合計が違う（エンジン=${engine.goukei}）`).toContain(engine.goukei);
+
+  // ④ ★言葉も3つで同じか★（半角/全角カッコまで含めて1文字も違わない）
+  const L = await page.evaluate(() =>
+    window.MeisaiEngine.totalsLabels(window.MASTER["飛勝工業株式会社"], {})
+  );
+  expect(t, `★紙の税の言い方が違う（エンジン=${L.消費税}）
+${t.join(" / ")}`).toContain(L.消費税);
+  expect(t, "紙の小計の言い方が違う").toContain(L.小計);
+
+  const xtext = await page.evaluate(async (arr) => {
+    const wb = window.XLSX.read(new Uint8Array(arr), { type: "array" });
+    const out = [];
+    for (const n of wb.SheetNames) {
+      const ws = wb.Sheets[n];
+      for (const k of Object.keys(ws)) if (k[0] !== "!" && typeof ws[k].v === "string") out.push(ws[k].v);
+    }
+    return out;
+  }, Array.from(fs.readFileSync(xlPath)));
+  expect(xtext, `★Excelの税の言い方が違う（エンジン=${L.消費税}）`).toContain(L.消費税);
+  expect(xtext, "Excelの小計の言い方が違う").toContain(L.小計);
+});
+
+// ★率を文字で書かない★（指示役 2026-08-12）
+//   "10%" と直書きすると、率が変わった日・軽減税率が混ざった日に ★言葉だけ嘘になる★。
+//   率は計算に使った値（TAX_RATE）から組み立てる。
+test("★紙とExcelを作る所に 率の直書きが1つも無い★", async () => {
+  const fsx = await import("node:fs");
+  const bad = [];
+  for (const f of ["invoice-pdf.js", "daikou-seikyu.html", "meisai-engine.js"]) {
+    // ★複数行の注釈は 先に丸ごと落とす★
+    //   行ごとに落とそうとすると /* … */ が跨いだ分を落とせず、
+    //   ★自分が書いた説明文を「率の直書き」として拾ってしまう★（実際に踏んだ）。
+    const src = fsx
+      .readFileSync(f, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+    src
+      .split("\n")
+      .forEach((L, i) => {
+        const code = L.replace(/\/\/.*$/, "");
+        if (/["'][^"']*\d+\s*%[^"']*["']/.test(code) && /消費税|税率|tax/i.test(code)) {
+          bad.push(`${f}:${i + 1} ${L.trim().slice(0, 70)}`);
+        }
+      });
+  }
+  expect(bad, "★率を文字で書いている:\n  " + bad.join("\n  ")).toEqual([]);
 });

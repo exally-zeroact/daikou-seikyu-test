@@ -206,3 +206,89 @@ test("★外税の会社：紙に「外税」と刷られる★", async ({ page 
   // 外税＝10,000 に 1,000 を足して 11,000
   expect(t, "★外税の合計が違う★\n" + j).toContain("¥11,000");
 });
+
+// ★Excelでも同じ数が出るか（紙だけ見て終わりにしない）★
+//   指示役の指摘：Excel側の繰越は ★コードを通しただけで 実物を数えていなかった★。
+test("★Excelにも繰越が出て、紙と同じ数★", async ({ page }) => {
+  fs.mkdirSync(OUT, { recursive: true });
+  await page.addInitScript({ path: "tests/e2e/fake-supabase.js" });
+  await page.addInitScript(seed, { carry: true, copy: true });
+  await page.goto("/daikou-seikyu.html", { waitUntil: "load" });
+  await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
+  await page.locator('.nav-item[data-scr="billing"]').click();
+  await page.selectOption("#invMonth", "2026-06");
+  await page.selectOption("#invCompany", "繰越あり社");
+  await expect(page.locator("#invoiceOut.inv-loading")).toHaveCount(0, { timeout: 120000 });
+
+  await page.waitForFunction(() => !!window.XLSX && !!window.XLSX.write, null, { timeout: 60000 });
+  await page.getByRole("button", { name: /Excelに書き出し/ }).click();
+  const picker = page.locator("#modalBody");
+  await expect(picker.getByText("入れる内容")).toBeVisible();
+  const dl = page.waitForEvent("download", { timeout: 120000 });
+  await picker.getByRole("button", { name: /このExcelを作る/ }).click();
+  const f = path.join(OUT, "carry.xlsx");
+  await (await dl).saveAs(f);
+
+  const cells = await page.evaluate(async (arr) => {
+    const wb = window.XLSX.read(new Uint8Array(arr), { type: "array" });
+    const txt = [], num = [];
+    for (const n of wb.SheetNames) {
+      const ws = wb.Sheets[n];
+      for (const k of Object.keys(ws)) {
+        if (k[0] === "!") continue;
+        if (typeof ws[k].v === "string") txt.push(ws[k].v);
+        if (typeof ws[k].v === "number") num.push(ws[k].v);
+      }
+    }
+    return { txt, num };
+  }, Array.from(fs.readFileSync(f)));
+
+  // ★言葉★
+  for (const w of ["前回繰越額", "合計請求額", "ご入金額", "今回お支払額"]) {
+    expect(cells.txt, `★Excelに「${w}」が無い★`).toContain(w);
+  }
+  // ★数（手計算：37,200−20,000=17,200 ／ +12,000=29,200 ／ −5,000=24,200）★
+  expect(cells.num, "★Excelの前回繰越が 17,200 でない★").toContain(17200);
+  expect(cells.num, "★Excelの合計請求額が 29,200 でない★").toContain(29200);
+  expect(cells.num, "★Excelの今回お支払額が 24,200 でない★").toContain(24200);
+});
+
+// ★長い言葉が 紙の中で重ならないか★
+//   「今回お支払額」は今までで一番長い見出し。値と重なると紙が読めなくなる。
+test("★紙の中で 見出しと金額が重ならない★", async ({ page }) => {
+  await page.addInitScript({ path: "tests/e2e/fake-supabase.js" });
+  await page.addInitScript(seed, { carry: true, copy: true });
+  await page.goto("/daikou-seikyu.html", { waitUntil: "load" });
+  await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
+  await page.locator('.nav-item[data-scr="billing"]').click();
+  await page.selectOption("#invMonth", "2026-06");
+  await page.selectOption("#invCompany", "繰越あり社");
+  await expect(page.locator("#invoiceOut.inv-loading")).toHaveCount(0, { timeout: 120000 });
+  const dl = page.waitForEvent("download", { timeout: 120000 });
+  await page.getByRole("button", { name: /PDFで保存/ }).click();
+  const f = path.join(OUT, "kasanari.pdf");
+  await (await dl).saveAs(f);
+
+  // ★文字の置き場所と幅を取り、同じ行で重なっていないか数える★
+  const items = await page.evaluate(async (arr) => {
+    const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(arr) }).promise;
+    const pg = await doc.getPage(1);
+    const c = await pg.getTextContent();
+    return c.items.map((i) => ({ s: i.str, x: i.transform[4], y: i.transform[5], w: i.width }));
+  }, Array.from(fs.readFileSync(f)));
+
+  // ★同じ文字どうしは見ない★
+  //   太字は「同じ文字を0.02ptずつずらして3回 重ね書き」して作っている（疑似ボールド）。
+  //   それを重なりとして数えると ★必ず赤になる見張り＝誰も見なくなる★（実際に踏んだ）。
+  const kasanari = [];
+  for (const a of items) {
+    for (const b of items) {
+      if (a === b) continue;
+      if (a.s.trim() === b.s.trim()) continue; // 疑似ボールドの重ね書き
+      if (!a.s.trim() || !b.s.trim()) continue; // 空白だけの物
+      if (Math.abs(a.y - b.y) > 2) continue; // 同じ行だけ
+      if (a.x < b.x && a.x + a.w > b.x + 0.5) kasanari.push(`「${a.s}」と「${b.s}」`);
+    }
+  }
+  expect(kasanari, "★紙の中で文字が重なっている:\n  " + kasanari.join("\n  ")).toEqual([]);
+});

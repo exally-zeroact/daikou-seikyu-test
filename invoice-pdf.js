@@ -614,6 +614,19 @@
           align: "right",
         });
       }
+      // ★繰越（会社が「使う」を選んだ時だけ）★ 出せない物は 0円と書かず 理由を出す
+      if (iss && iss.carry) {
+        var _c = iss.carry;
+        var _cr = function (lbl, val, big) {
+          sy -= _g(big ? 18 : 15);
+          T(page, font, lbl, bx + 10, sy, big ? 11 : 9.5, { color: big ? TEXT : MUTED });
+          T(page, font, val, rx - 10, sy, big ? 12 : 9.5, { color: TEXT, align: "right" });
+        };
+        _cr(_L.前回繰越額, _c.kurikoshi == null ? _c.riyu[0] || "—" : yen(_c.kurikoshi));
+        if (_c.goukeiSeikyu != null) _cr(_L.合計請求額, yen(_c.goukeiSeikyu));
+        _cr(_L.ご入金額, _c.nyukin == null ? "入金は未確認" : yen(-_c.nyukin));
+        if (_c.oshiharai != null) _cr(_L.今回お支払額, yen(_c.oshiharai), true);
+      }
       sy -= _g(20);
       // 役職集計（内訳）
       if (noteN) {
@@ -1033,6 +1046,14 @@
       line(page, boxX, sy + 3, RX, sy + 3, GREY, 0.8);
       sy -= 2;
       totRow(_Lc.合計, yen(_tc.goukei), true);
+      // ★繰越（会社が「使う」を選んだ時だけ）★ 出せない物は 0円と書かず 理由を出す
+      if (iss && iss.carry) {
+        var c = iss.carry;
+        totRow(_Lc.前回繰越額, c.kurikoshi == null ? c.riyu[0] || "—" : yen(c.kurikoshi));
+        if (c.goukeiSeikyu != null) totRow(_Lc.合計請求額, yen(c.goukeiSeikyu));
+        totRow(_Lc.ご入金額, c.nyukin == null ? "入金は未確認" : yen(-c.nyukin));
+        if (c.oshiharai != null) totRow(_Lc.今回お支払額, yen(c.oshiharai), true);
+      }
       if (m.noteSummary && (m.noteGroups || []).length) {
         var sums = {};
         (m.noteGroups || []).forEach(function (g) {

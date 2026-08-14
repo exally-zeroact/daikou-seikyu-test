@@ -3495,6 +3495,9 @@
           noteGroups: m.noteGroups || [],
           labels: m.labels || {},
         };
+        // ★繰越・税の扱いも「選ばれた時だけ」足す＝選んでいない会社の中身は今までと完全に同じ★
+        if (m.carryover) config.carryover = true;
+        if (m.taxMode === "外税") config.taxMode = "外税";
         // ★会社毎テンプレは「指定された時だけ」configに足す＝未設定会社のpayloadは従来と完全一致（バイト不変）。
         if (m.pdfDesign) {
           config.pdfDesign = m.pdfDesign;
@@ -3555,6 +3558,9 @@
               noteSummary: !!cf.noteSummary,
               noteGroups: cf.noteGroups || [],
               labels: cf.labels || {},
+              // ★繰越（既定は使わない）／消費税の扱い（既定は内税）★
+              carryover: !!cf.carryover,
+              taxMode: cf.taxMode === "外税" ? "外税" : "内税",
               // ★会社毎テンプレ（未設定=null=全体設定を使う＝既定）。
               pdfDesign: cf.pdfDesign || null,
               elegantVariant: cf.elegantVariant || null,
@@ -3592,6 +3598,15 @@
           .select("config")
           .eq("user_id", CURRENT_ACCOUNT)
           .maybeSingle();
+        // ★発行の控えを読む（繰越の材料）★
+        INVOICES = [];
+        try {
+          var ivs = await SB.from("invoices").select("month, company, invoice_no, total, issued_at");
+          if (ivs.error) cloudErr("請求書の控え読込", ivs.error);
+          else INVOICES = ivs.data || [];
+        } catch (e) {
+          cloudErr("請求書の控え読込", e);
+        }
         // ★番号の台帳を読む（凍結した番号はここから出す）★
         INVOICE_NO = {};
         try {
@@ -4654,13 +4669,23 @@
               tot.push({ l: "源泉徴収税額", v: -gensen });
               tot.push({ l: "お振込金額", v: baseGoukei - gensen, big: 1, line: 1 });
             }
-            // 繰越請求：前回繰越＋今回請求−入金＝今回お支払額（本番は入金管理連動・demoはマスタ値）
-            if (m.carryover) {
-              var prev = Number(m.carryoverPrev) || 0,
-                paid = Number(m.carryoverPaid) || 0;
-              tot.push({ l: "前回繰越額", v: prev });
-              tot.push({ l: "今回ご入金額", v: -paid });
-              tot.push({ l: "今回お支払額", v: baseGoukei + prev - paid, big: 1, line: 1 });
+            // ★繰越★ 2026-08-12：マスタの手打ち(carryoverPrev/Paid)をやめ、
+            //   ★保存した控えと入金から出した物（iss.carry）をそのまま使う★＝紙とExcelが同じ数になる
+            if (m.carryover && iss.carry) {
+              var _c = iss.carry;
+              tot.push({
+                l: _eL.前回繰越額,
+                v: _c.kurikoshi,
+                t: _c.kurikoshi == null ? _c.riyu[0] || "—" : null,
+              });
+              if (_c.goukeiSeikyu != null) tot.push({ l: _eL.合計請求額, v: _c.goukeiSeikyu });
+              tot.push({
+                l: _eL.ご入金額,
+                v: _c.nyukin == null ? null : -_c.nyukin,
+                t: _c.nyukin == null ? "入金は未確認" : null,
+              });
+              if (_c.oshiharai != null)
+                tot.push({ l: _eL.今回お支払額, v: _c.oshiharai, big: 1, line: 1 });
             }
             var amtC = lastCol; // 金額＝表の右端（右下隅・桁の縦ライン）
             var lblC = Math.max(amtC - 1, 0); // ラベルは金額のすぐ左
@@ -8076,6 +8101,7 @@
            台帳に無い間は 今までと同じ計算（invoiceNoFor）を返す＝見えている番号はそのまま。
       ============================================================================= */
       var INVOICE_NO = {}; // "YYYY-MM|会社名" -> "2026-05-03"
+      var INVOICES = []; // 発行の控え（繰越の材料）
       function invNoKey(month, co) {
         return month + "|" + co;
       }
@@ -8107,6 +8133,44 @@
         }
         return no;
       }
+      /* ★繰越の材料を集める★（2026-08-12）
+         前回繰越は ★手打ちにしない★：保存した控え(INVOICES) と 入金(PAYMENTS) から出す。
+         ・控えが在る月 … その控えの total を「請求額」にする（★渡した紙の額★）
+         ・控えが無い月 … ★null（読めない）★にする。0円と書かない＝繰越は出さない
+         ・入金        … PAYMENTS に行が無い月は 0（入金なし）。未確認は null で表す */
+      function carryMaterialFor(month, co) {
+        var kako = [];
+        var tsuki = {};
+        (INVOICES || []).forEach(function (iv) {
+          if (iv.company !== co || iv.month >= month) return;
+          // 同じ月に何度も出していたら ★最後に出した控え★ が渡した紙
+          if (!tsuki[iv.month] || iv.issued_at > tsuki[iv.month].issued_at) tsuki[iv.month] = iv;
+        });
+        // 明細が在るのに控えが無い月＝「読めない」として混ぜる（黙って飛ばさない）
+        var arumonth = {};
+        DB.forEach(function (r) {
+          if (r.account_id !== CURRENT_ACCOUNT || r.会社名 !== co || !r.日付) return;
+          var m2 = r.日付.slice(0, 7);
+          if (m2 < month) arumonth[m2] = 1;
+        });
+        Object.keys(arumonth)
+          .sort()
+          .forEach(function (m2) {
+            var pay = PAYMENTS[CURRENT_ACCOUNT + "::" + m2 + "::" + co];
+            kako.push({
+              month: m2,
+              seikyu: tsuki[m2] ? Number(tsuki[m2].total) : null, // 控えが無い＝読めない
+              nyukin: pay ? Number(pay.paid) || 0 : 0,
+            });
+          });
+        return kako;
+      }
+      // 当月に受け取った入金（行が無ければ0＝入金なし）
+      function carryNyukinFor(month, co) {
+        var pay = PAYMENTS[CURRENT_ACCOUNT + "::" + month + "::" + co];
+        return pay ? Number(pay.paid) || 0 : 0;
+      }
+
       // ★発行の控えを1行 積む★（明細・自社情報・様式の写しつき）
       async function saveInvoiceCopy(month, co, rows, iss, no) {
         var total = rows.reduce(function (t, r) {
@@ -8477,6 +8541,25 @@
         return y + "/" + mo + "/" + d;
       }
       // エンジンが受け取る形（lines/bank/hanko）へ変換。空行は自動で除外。
+      /* ★繰越の中身を作る（会社が「使う」を選んだ時だけ）★
+         月は請求タブで選んでいる月。選ばれていなければ 繰越は出さない。 */
+      function _carryFor(co) {
+        if (!co || !MASTER[co] || !MASTER[co].carryover) return null;
+        var el = document.getElementById("invMonth");
+        var month = el ? el.value : "";
+        if (!month) return null;
+        var rows = DB.filter(function (r) {
+          return r.account_id === CURRENT_ACCOUNT && r.会社名 === co && inMonth(r.日付, month);
+        });
+        var konkai = MeisaiEngine.invoiceTotals(rows, {
+          taxMode: MASTER[co].taxMode,
+        }).goukei;
+        return MeisaiEngine.carryoverOf(
+          carryMaterialFor(month, co),
+          konkai,
+          carryNyukinFor(month, co)
+        );
+      }
       function issuerForEngine(co) {
         var s = currentIssuer();
         var bankLines = splitLines(s.bank);
@@ -8514,6 +8597,9 @@
             s.showPaymentDue && s.paymentDue
               ? fmtDueDate(s.paymentDue, s.paymentDueEra || "seireki")
               : "",
+          // ★繰越（会社ごと・既定は使わない）★ 紙とExcelに同じ物を渡す
+          taxMode: (_m && _m.taxMode) === "外税" ? "外税" : "内税",
+          carry: _carryFor(co),
           hanko: s.hanko || null,
           hankoSizeMm: Number(s.hankoSizeMm) || 21,
           logo: s.logo || null,
@@ -9684,6 +9770,31 @@
           " onchange=\"setMasterField('" +
           esc(co) +
           "','noteSummary',this.checked)\"> 備考で集計ボックスを出す（例：役職別や名前別など）</label>" +
+          /* ★繰越（2026-08-12 司さん「繰り越しに関しては選べるようにしろや」）★
+             既定は切＝今までどおり。入れると 前回の残りを次の請求に乗せる。
+             前回繰越は ★保存した控えと入金から自動★（手打ちにしない）。 */
+          '<label class="toggle-row"><input type="checkbox" ' +
+          (m.carryover ? "checked" : "") +
+          " onchange=\"setMasterField('" +
+          esc(co) +
+          "','carryover',this.checked)\"> 繰越を使う（前回の残りを次の請求に乗せる）</label>" +
+          '<div style="font-size:10px;color:#5a6b82;margin:2px 0 8px 26px;line-height:1.6;">' +
+          "前回繰越額・合計請求額・ご入金額・今回お支払額 が紙とExcelに出ます。" +
+          "前回の請求が無い会社は「前回の請求はありません」と出ます（0円とは書きません）。</div>" +
+          /* ★内税/外税（値は前から在ったが 切り替える所が無かった＝到達しない分岐だった）★ */
+          '<div class="frow"><div class="flabel">消費税の扱い</div>' +
+          '<div class="align-row">' +
+          '<button type="button" class="align-btn' +
+          (m.taxMode === "外税" ? "" : " on") +
+          "\" onclick=\"setMasterField('" +
+          esc(co) +
+          "','taxMode','内税')\">内税（金額は税込）</button>" +
+          '<button type="button" class="align-btn' +
+          (m.taxMode === "外税" ? " on" : "") +
+          "\" onclick=\"setMasterField('" +
+          esc(co) +
+          "','taxMode','外税')\">外税（金額は税抜）</button>" +
+          "</div></div>" +
           '<div class="frow" style="margin-top:6px;">' +
           '<div class="flabel">集計の並び（読点区切り）</div>' +
           '<input class="finput" placeholder="会長、社長、専務" value="' +

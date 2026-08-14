@@ -25,32 +25,35 @@ test.setTimeout(180000);
 const CO = "内税社";
 const UID = "u_fit";
 
-function seed() {
+// 明細の本数を変えて 1ページ／複数ページ の両方を測る
+// （★複数ページでしか出ない「このページの小計」「次ページへ続く →」を1ページだけで測ると 見ないまま緑になる★）
+function seed(n) {
   const uid = "u_fit";
   const co = "内税社";
+  const rows = [];
+  for (let i = 0; i < n; i++)
+    rows.push({
+      id: "m" + i,
+      user_id: uid,
+      company: co,
+      date: "2026-05-" + String((i % 28) + 1).padStart(2, "0"),
+      destination: "本社〜北浜〜曽根崎",
+      amount: 12000,
+      note: "",
+      distance: null,
+      people: 1,
+      name: "",
+      extra: null,
+      created_at: "2026-05-01T00:00:00.000Z",
+      deleted_at: null,
+    });
   localStorage.setItem(
     "__fake_supa_db__",
     JSON.stringify({
       users: { "t@x.com": { id: uid, email: "t@x.com", password: "himitsu123" } },
       session: { user: { id: uid, email: "t@x.com" } },
       tables: {
-        meisai: [
-          {
-            id: "m0",
-            user_id: uid,
-            company: co,
-            date: "2026-05-06",
-            destination: "本社〜北浜〜曽根崎",
-            amount: 12000,
-            note: "",
-            distance: null,
-            people: 1,
-            name: "",
-            extra: null,
-            created_at: "2026-05-01T00:00:00.000Z",
-            deleted_at: null,
-          },
-        ],
+        meisai: rows,
         companies: [
           {
             id: "c1",
@@ -88,100 +91,113 @@ function needWch(s, sz) {
   return (n * (sz || 11)) / 11;
 }
 
-test("★Excelの文字が 紙で欠けない（幅と結合を実測）★", async ({ page }) => {
-  const OUT = path.join("test-results", "excel-fit");
-  fs.mkdirSync(OUT, { recursive: true });
+for (const [N, KIND] of [
+  [1, "1ページ"],
+  [60, "複数ページ"],
+])
+  test(`★Excelの文字が 紙で欠けない・${KIND}（幅と結合を実測）★`, async ({ page }) => {
+    const OUT = path.join("test-results", "excel-fit-" + N);
+    fs.mkdirSync(OUT, { recursive: true });
 
-  await page.addInitScript({ path: "tests/e2e/fake-supabase.js" });
-  await page.addInitScript(seed);
-  await page.goto("/daikou-seikyu.html", { waitUntil: "load" });
-  await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
-  await page.locator('.nav-item[data-scr="billing"]').click();
-  await page.selectOption("#invMonth", "2026-05");
-  await page.selectOption("#invCompany", CO);
-  await expect(page.locator("#invoiceOut.inv-loading")).toHaveCount(0, { timeout: 120000 });
+    await page.addInitScript({ path: "tests/e2e/fake-supabase.js" });
+    await page.addInitScript(seed, N);
+    await page.goto("/daikou-seikyu.html", { waitUntil: "load" });
+    await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
+    await page.locator('.nav-item[data-scr="billing"]').click();
+    await page.selectOption("#invMonth", "2026-05");
+    await page.selectOption("#invCompany", CO);
+    await expect(page.locator("#invoiceOut.inv-loading")).toHaveCount(0, { timeout: 120000 });
 
-  await page.waitForFunction(() => !!window.XLSX && !!window.XLSX.write, null, { timeout: 60000 });
-  await page.getByRole("button", { name: /Excelに書き出し/ }).click();
-  const picker = page.locator("#modalBody");
-  await expect(picker.getByText("入れる内容")).toBeVisible();
-  const dl = page.waitForEvent("download", { timeout: 120000 });
-  await picker.getByRole("button", { name: /このExcelを作る/ }).click();
-  const xlPath = path.join(OUT, "fit.xlsx");
-  await (await dl).saveAs(xlPath);
-
-  // 出来上がったファイルから セル・結合・列幅を取り出す
-  const sheets = await page.evaluate(async (arr) => {
-    const wb = window.XLSX.read(new Uint8Array(arr), { type: "array", cellStyles: true });
-    return wb.SheetNames.map((n) => {
-      const ws = wb.Sheets[n];
-      const cells = [];
-      for (const k of Object.keys(ws)) {
-        if (k[0] === "!") continue;
-        const c = ws[k];
-        if (c.v == null || String(c.v).trim() === "") continue;
-        const rc = window.XLSX.utils.decode_cell(k);
-        cells.push({
-          a: k,
-          r: rc.r,
-          c: rc.c,
-          v: String(c.v),
-          num: typeof c.v === "number",
-          sz: (c.s && c.s.font && c.s.font.sz) || 11,
-        });
-      }
-      return {
-        name: n,
-        cells,
-        merges: (ws["!merges"] || []).map((m) => ({
-          r1: m.s.r,
-          c1: m.s.c,
-          r2: m.e.r,
-          c2: m.e.c,
-        })),
-        cols: (ws["!cols"] || []).map((x) => Number(x.wch) || 9),
-      };
+    await page.waitForFunction(() => !!window.XLSX && !!window.XLSX.write, null, {
+      timeout: 60000,
     });
-  }, Array.from(fs.readFileSync(xlPath)));
+    await page.getByRole("button", { name: /Excelに書き出し/ }).click();
+    const picker = page.locator("#modalBody");
+    await expect(picker.getByText("入れる内容")).toBeVisible();
+    const dl = page.waitForEvent("download", { timeout: 120000 });
+    await picker.getByRole("button", { name: /このExcelを作る/ }).click();
+    const xlPath = path.join(OUT, "fit.xlsx");
+    await (await dl).saveAs(xlPath);
 
-  expect(sheets.length, "シートが1枚も無い").toBeGreaterThan(0);
+    // 出来上がったファイルから セル・結合・列幅を取り出す
+    const sheets = await page.evaluate(
+      async (arr) => {
+        const wb = window.XLSX.read(new Uint8Array(arr), { type: "array", cellStyles: true });
+        return wb.SheetNames.map((n) => {
+          const ws = wb.Sheets[n];
+          const cells = [];
+          for (const k of Object.keys(ws)) {
+            if (k[0] === "!") continue;
+            const c = ws[k];
+            if (c.v == null || String(c.v).trim() === "") continue;
+            const rc = window.XLSX.utils.decode_cell(k);
+            cells.push({
+              a: k,
+              r: rc.r,
+              c: rc.c,
+              v: String(c.v),
+              num: typeof c.v === "number",
+              sz: (c.s && c.s.font && c.s.font.sz) || 11,
+            });
+          }
+          return {
+            name: n,
+            cells,
+            merges: (ws["!merges"] || []).map((m) => ({
+              r1: m.s.r,
+              c1: m.s.c,
+              r2: m.e.r,
+              c2: m.e.c,
+            })),
+            cols: (ws["!cols"] || []).map((x) => Number(x.wch) || 9),
+          };
+        });
+      },
+      Array.from(fs.readFileSync(xlPath))
+    );
 
-  const lost = [];
-  const cut = [];
-  let looked = 0;
+    expect(sheets.length, "シートが1枚も無い").toBeGreaterThan(0);
 
-  for (const sh of sheets) {
-    const mergeOf = (r, c) =>
-      sh.merges.find((m) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2);
-    const wch = (c) => sh.cols[c] || 9;
+    const lost = [];
+    const cut = [];
+    let looked = 0;
 
-    for (const cell of sh.cells) {
-      looked++;
-      const m = mergeOf(cell.r, cell.c);
-      // A. 結合の左上以外に置かれた値＝Excelでは ★出ない★
-      if (m && !(m.r1 === cell.r && m.c1 === cell.c)) {
-        lost.push(`${sh.name} ${cell.a} 「${cell.v}」（結合 ${m.r1},${m.c1}〜${m.r2},${m.c2} の左上でない）`);
-        continue;
+    for (const sh of sheets) {
+      const mergeOf = (r, c) =>
+        sh.merges.find((m) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2);
+      const wch = (c) => sh.cols[c] || 9;
+
+      for (const cell of sh.cells) {
+        looked++;
+        const m = mergeOf(cell.r, cell.c);
+        // A. 結合の左上以外に置かれた値＝Excelでは ★出ない★
+        if (m && !(m.r1 === cell.r && m.c1 === cell.c)) {
+          lost.push(
+            `${sh.name} ${cell.a} 「${cell.v}」（結合 ${m.r1},${m.c1}〜${m.r2},${m.c2} の左上でない）`
+          );
+          continue;
+        }
+        if (cell.num) continue; // 数はセル幅を超えると ### になるが 桁は書式次第。文字だけ測る
+        // B. 使える幅（自分の列＋結合した列）と 要る幅
+        let have = 0;
+        if (m) for (let c = m.c1; c <= m.c2; c++) have += wch(c);
+        else have = wch(cell.c);
+        // 右端まで空きが続く行末の文字は はみ出して読めるので除く
+        const right = m ? m.c2 : cell.c;
+        const blocked = sh.cells.some((o) => o.r === cell.r && o.c > right);
+        if (!blocked) continue;
+        const need = needWch(cell.v, cell.sz);
+        if (need > have)
+          cut.push(`${sh.name} ${cell.a} 「${cell.v}」 要る幅${need.toFixed(1)} > 使える幅${have}`);
       }
-      if (cell.num) continue; // 数はセル幅を超えると ### になるが 桁は書式次第。文字だけ測る
-      // B. 使える幅（自分の列＋結合した列）と 要る幅
-      let have = 0;
-      if (m) for (let c = m.c1; c <= m.c2; c++) have += wch(c);
-      else have = wch(cell.c);
-      // 右端まで空きが続く行末の文字は はみ出して読めるので除く
-      const right = m ? m.c2 : cell.c;
-      const blocked = sh.cells.some((o) => o.r === cell.r && o.c > right);
-      if (!blocked) continue;
-      const need = needWch(cell.v, cell.sz);
-      if (need > have)
-        cut.push(`${sh.name} ${cell.a} 「${cell.v}」 要る幅${need.toFixed(1)} > 使える幅${have}`);
     }
-  }
 
-  expect(looked, "★1つも見ていない（0本の緑は未検査）★").toBeGreaterThan(20);
-  expect(lost, "★結合の左上に無い＝Excelでは消える文字:\n  " + lost.join("\n  ")).toEqual([]);
-  expect(cut, "★列幅が足りず 紙で欠ける文字:\n  " + cut.join("\n  ")).toEqual([]);
+    expect(looked, "★1つも見ていない（0本の緑は未検査）★").toBeGreaterThan(20);
+    expect(lost, "★結合の左上に無い＝Excelでは消える文字:\n  " + lost.join("\n  ")).toEqual([]);
+    expect(cut, "★列幅が足りず 紙で欠ける文字:\n  " + cut.join("\n  ")).toEqual([]);
 
-  // 見た本数を残す（0本の緑と区別する）
-  console.log(`[excel-label-fits] シート${sheets.length}枚 / 文字と数 ${looked}個 を測った`);
-});
+    // 見た本数を残す（0本の緑と区別する）
+    console.log(
+      `[excel-label-fits] ${KIND}: シート${sheets.length}枚 / 文字と数 ${looked}個 を測った`
+    );
+  });

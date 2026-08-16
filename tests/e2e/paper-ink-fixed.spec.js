@@ -114,8 +114,8 @@ async function inkOf(page, pdfPath, wants) {
       await pg.render({ canvasContext: x, viewport: v }).promise;
       const tc = await pg.getTextContent();
       const out = {};
-      // 空白（半角・全角）を落として探す。紙は「請　求　書」のように字間を空けて刷る
-      const norm = (t) => String(t).replace(/[\s　]/g, "");
+      // 空白（半角・全角）を落として探す。紙はタイトルの字間を空けて刷るため
+      const norm = (t) => String(t).replace(/[\s\u3000]/g, ""); // \u3000 = zenkaku space
       for (const want of wants) {
         const w = norm(want);
         const it = tc.items.find((i) => norm(i.str) === w) || tc.items.find((i) => norm(i.str).includes(w));

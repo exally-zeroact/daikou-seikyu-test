@@ -1348,6 +1348,28 @@
         border-bottom: 1px solid #e3eaf2;
         object-fit: contain;
       }
+      /* ★見本＝実際の紙をそのまま縮める★（作り物の線画をやめた 2026-08-18 司さん）
+         「他のアプリは実際の見せとんのに なんでこれだけ意味わからんやり方なんど」 */
+      .tpl-thumb-real {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: #ffffff;
+      }
+      .tpl-thumb-real canvas {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+      .tpl-thumb-msg {
+        font-size: 11px;
+        color: #555555;
+        text-align: center;
+        padding: 0 8px;
+        line-height: 1.5;
+      }
       .tpl-meta {
         padding: 9px 11px 11px;
       }
@@ -3129,7 +3151,7 @@
             同じ会社・同じ月で明細が1ページに収まらないときは、<b>明細を複数ページに分けて</b>出します。各明細ページの下には<b
               >「このページの小計」＋「次ページへ続く →」</b
             >を表示し、<b>最後のページに「ページ別の内訳一覧」と総合計（ご請求金額・合計）をまとめます</b>。取引先が混乱しないよう、途中ページには総額を出しません。<br />
-            ※エレガント＝「ページ別 内訳」／クラシック＝「内容（ページ別）」という表で集約します。
+            ※最後のページに「ページ別の内訳」をまとめます。
           </div>
         </details>
         <div class="scr-sub no-print" style="margin-top: 8px">
@@ -3803,7 +3825,8 @@
           tot += Number(r.金額) || 0;
           aoa.push(
             cols.map(function (c) {
-              var v = r[c];
+              // ★行き先は エンジン1本から（画面・紙と同じ物）★ 2026-08-18
+              var v = c === "行き先" ? MeisaiEngine.utils.routeTextOf(r) : r[c];
               if (nums[c]) return v === "" || v == null ? "" : Number(v);
               return v == null ? "" : v;
             })
@@ -3861,7 +3884,8 @@
           tot += Number(r.金額) || 0;
           aoa.push(
             cols.map(function (c) {
-              var v = r[c];
+              // ★行き先は エンジン1本から（画面・紙と同じ物）★ 2026-08-18
+              var v = c === "行き先" ? MeisaiEngine.utils.routeTextOf(r) : r[c];
               if (nums[c]) return v === "" || v == null ? "" : Number(v);
               return v == null ? "" : v;
             })
@@ -6171,7 +6195,7 @@
               v.key +
               "')\">" +
               '<div class="tpl-badge">✓</div>' +
-              tplThumbSvg(design, v) +
+              tplThumbBox(design, v) +
               '<div class="tpl-meta"><div class="tpl-name">' +
               v.label +
               '</div><div class="tpl-desc">' +
@@ -6181,6 +6205,7 @@
             );
           })
           .join("");
+        paintTplThumbs(g); // ★見本＝実際の紙（作った順に1枚ずつ入る）★
         var hint = document.getElementById("tplLogoHint");
         if (hint) {
           var needLogo =
@@ -6736,7 +6761,7 @@
           "</div></div>";
         if (classic)
           h +=
-            '<div class="note" style="color:#b45309">※今のデザイン（前テンプレ）は文字サイズ変更に未対応です。エレガント系でお使いください。</div>';
+            '<div class="note">この形（枠と帯）は 文字の大きさが決まっています。変えるなら「線ひかえめ」の形を選んでください。</div>';
         else
           h += '<div class="note" style="margin-top:2px">※大きさはPDF用です（Excelは標準）。</div>';
         return h;
@@ -7279,9 +7304,10 @@
           h +=
             '<div class="note">請求書全体の文字の大きさを変えます。プレビューに即反映。大きくすると1枚に入る明細が減り、増えたぶんは自動で2ページ目に回ります。</div>';
           var curFs = Number(s.fontScale) || 1;
-          if (s.pdfDesign === "classic")
+          var fsFixed = s.pdfDesign === "classic"; // ★この形は大きさが決まっている＝押せない見た目にする★
+          if (fsFixed)
             h +=
-              '<div class="note" style="color:#b45309">※今のデザイン（前テンプレ）は文字サイズ変更に未対応です。エレガント系のデザインでお使いください。</div>';
+              '<div class="note">この形（枠と帯）は 文字の大きさが決まっています。変えるなら「線ひかえめ」の形を選んでください。</div>';
           h += '<div class="ep-row"><span class="l">大きさ</span><div class="ep-seg">';
           [
             ["小", 0.9],
@@ -7292,9 +7318,8 @@
             h +=
               '<button class="ep-chip' +
               (on ? " on" : "") +
-              '" onclick="editSetFontScale(' +
-              e[1] +
-              ')">' +
+              (fsFixed ? '" disabled' : '" onclick="editSetFontScale(' + e[1] + ")") +
+              '">' +
               e[0] +
               "</button>";
           });
@@ -7353,7 +7378,7 @@
               h += _algGroup("選択範囲内の文字を", _av(s.lineIssuer), "editSetIssuerLine");
             } else {
               h +=
-                '<div class="note">※今のデザイン（クラシック）は会社名・住所が<b>右固定</b>です。位置を変えるには「全体 → デザイン」で<b>エレガント</b>を選んでください。</div>';
+                '<div class="note">この形（枠と帯）は 会社名・住所が<b>右で固定</b>です。位置を変えるなら「全体 → デザイン」で<b>線ひかえめ</b>を選んでください。</div>';
               h += _algGroup("選択範囲を", _av(s.alignIssuer), "editSetIssuerAlign", true);
               h += _algGroup("選択範囲内の文字を", _av(s.lineIssuer), "editSetIssuerLine", true);
             }
@@ -7370,7 +7395,7 @@
               '<div class="note" style="font-weight:800;color:#5a6b82;margin:10px 0 2px">会社名・住所（自社）</div>' +
               (isEle
                 ? ""
-                : '<div class="note" style="margin-top:0">※クラシックは右固定（エレガントで変わります）。</div>');
+                : '<div class="note" style="margin-top:0">この形（枠と帯）は右で固定です（「線ひかえめ」なら変えられます）。</div>');
             h += _algGroup("選択範囲を", _av(s.alignIssuer), "editSetIssuerAlign", !isEle);
             h += _algGroup("選択範囲内の文字を", _av(s.lineIssuer), "editSetIssuerLine", !isEle);
           }
@@ -8522,85 +8547,143 @@
       //  ・elegant＝中央タイトル＋ひし形・淡ミント表。種類はロゴ有/無の2つ（headerStyleは無視される設計）。
       //  ・classic＝緑ヘッダー帯＋横罫の伝統型。種類は対角ロゴ有/対角ロゴ無/中央の3つ。
       //  状態は (pdfDesign, elegantVariant, classicVariant) の2次元で持つ＝デザインを跨いでも化けない。
-      var DESIGN_LABELS = { elegant: "エレガント", classic: "クラシック" };
-      /* ===== サンプルのサムネ ─ ★その場で描く★ =====================================
-         ★2026-08-11 まで tpl_〈様式〉_〈種類〉.png という画像ファイルを読んでいたが、
-           そのファイルは repo に1枚も無く ★5枚とも404★ だった（司さんの実機で発覚）。
-           画面は壊れず「?」が出るだけなので、誰も気づかないまま残っていた。
-         ★ファイルを置く形には戻さない★：紙の様式や色を直すたびに作り直しになり、必ず古くなる。
-           （現に紙は 08-11 に緑→青／白黒へ変わった。png を置いていたら緑のサムネが残っていた）
-         ここで描く色は ★紙と同じ★：エレガント＝事務所の青／クラシック＝白黒。
+      /* ★人に見せる名前は「形」で言う★（2026-08-18 司さん／指示役 ④）
+         中の名前（elegant / classic）は データにそのまま残す＝過去の設定が化けない。
+         見張り: tests/e2e/template-thumbs.spec.js（人に見せる字に中の名前が0件） */
+      var DESIGN_LABELS = { elegant: "線ひかえめ", classic: "枠と帯" };
+      /* ===== 見本のサムネ ─ ★実際の紙を そのまま縮めて見せる★ ==========================
+         ★2026-08-18 司さん★
+           「他のアプリは実際の見せとんのに なんでこれだけ意味わからんやり方なんど」
+           「もともとちゃんと見せれとったろが」
+         ここは 2026-08-11 まで tpl_〈様式〉_〈種類〉.png を読んでいたが ★5枚とも404★ だった。
+         その後は ★線だけの作り物（SVG）★ を描いていた＝実物とは別物で、選ぶ時に嘘になる。
+         ⇒ ★本物のPDFを作って1ページ目を縮めて描く★。紙を直せば見本も同時に直る（古くならない）。
+           ・データは ★その人自身の明細★（一番新しい月）。1件も無い時だけ、形が分かる最小の見本。
+           ・作るのは開いた時だけ・1枚ずつ・同じ物はキャッシュ（フォントは請求タブと同じ物を使い回す）
+         見張り: tests/e2e/template-thumbs.spec.js（★本物の紙が描かれたか★を実際の絵で測る）
       ============================================================================= */
-      function tplThumbSvg(design, v) {
-        var ele = design !== "classic";
-        // ★見本も本物と同じ濃さにする（見本だけ青いと 選ぶ時に嘘になる）★
-        var ink = "#1A1A1A"; // 本文・タイトル＝全体の色から作らない（本物と同じ）
-        var acc = ele ? "#007AFF" : "#808080"; // 飾り線（★線だけ全体の色★）
-        var band = ele ? "#F2F7FF" : "#F2F2F2"; // 表の地
-        var rule = ele ? "#BFBFBF" : "#B0B0B0"; // 罫＝濃さで作る
-        var W = 100,
-          H = 141.4;
-        var centerTitle = v.headerStyle !== "A";
-        var logo = v.logoMode === "show";
-        var p = [];
-        p.push('<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#fff"/>');
-        // 見出し（中央 or 左）＋ロゴの位置
-        if (centerTitle) {
-          p.push('<rect x="34" y="12" width="32" height="6" rx="1" fill="' + ink + '"/>');
-          if (logo) p.push('<rect x="44" y="22" width="12" height="8" rx="1" fill="' + acc + '"/>');
-        } else {
-          p.push('<rect x="10" y="12" width="30" height="6" rx="1" fill="' + ink + '"/>');
-          if (logo)
-            p.push('<rect x="76" y="11" width="14" height="10" rx="1" fill="' + acc + '"/>');
-        }
-        p.push(
-          '<line x1="10" y1="' +
-            (centerTitle ? 34 : 26) +
-            '" x2="90" y2="' +
-            (centerTitle ? 34 : 26) +
-            '" stroke="' +
-            acc +
-            '" stroke-width="0.8"/>'
-        );
-        // 宛名・金額
-        p.push('<rect x="10" y="42" width="38" height="4" rx="1" fill="' + ink + '"/>');
-        p.push('<rect x="10" y="54" width="26" height="3" rx="1" fill="' + rule + '"/>');
-        p.push('<rect x="52" y="52" width="38" height="6" rx="1" fill="' + ink + '"/>');
-        // 表（見出しの帯＋4行）
-        p.push('<rect x="10" y="68" width="80" height="8" fill="' + band + '"/>');
-        for (var i = 0; i < 4; i++) {
-          var y = 80 + i * 8;
-          p.push(
-            '<line x1="10" y1="' +
-              y +
-              '" x2="90" y2="' +
-              y +
-              '" stroke="' +
-              rule +
-              '" stroke-width="0.6"/>'
-          );
-          p.push(
-            '<rect x="13" y="' + (y - 4) + '" width="34" height="2.4" rx="1" fill="' + rule + '"/>'
-          );
-          p.push(
-            '<rect x="74" y="' + (y - 4) + '" width="14" height="2.4" rx="1" fill="' + rule + '"/>'
-          );
-        }
-        // 合計
-        p.push('<line x1="52" y1="118" x2="90" y2="118" stroke="' + acc + '" stroke-width="0.8"/>');
-        p.push('<rect x="52" y="121" width="14" height="4" rx="1" fill="' + ink + '"/>');
-        p.push('<rect x="72" y="121" width="18" height="4" rx="1" fill="' + ink + '"/>');
+      var _tplThumbCache = {}; // key(design|variant|会社|月|件数) -> PDFのバイト
+      function tplThumbBox(design, v) {
         return (
-          '<svg class="tpl-thumb" viewBox="0 0 ' +
-          W +
-          " " +
-          H +
-          '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' +
+          '<div class="tpl-thumb tpl-thumb-real" data-design="' +
+          esc(design) +
+          '" data-variant="' +
+          esc(v.key) +
+          '" role="img" aria-label="' +
           esc(v.label) +
-          ' のサンプル">' +
-          p.join("") +
-          "</svg>"
+          ' の見本（実際の紙）"><span class="tpl-thumb-msg">見本を作っています…</span></div>'
         );
+      }
+      // 見本に使う明細＝★その人自身の物★（会社を指定されればその会社／無ければ一番新しい月）
+      function tplSampleRows(co) {
+        var mine = DB.filter(function (r) {
+          return r.account_id === CURRENT_ACCOUNT && (!co || r.会社名 === co);
+        });
+        if (!mine.length && co)
+          mine = DB.filter(function (r) {
+            return r.account_id === CURRENT_ACCOUNT;
+          });
+        if (!mine.length) return null;
+        var months = {};
+        mine.forEach(function (r) {
+          if (r.日付) months[String(r.日付).slice(0, 7)] = 1;
+        });
+        var month = Object.keys(months).sort().pop();
+        if (!month) return null;
+        var rows = mine
+          .filter(function (r) {
+            return String(r.日付 || "").slice(0, 7) === month;
+          })
+          .sort(function (a, b) {
+            return (
+              (a.日付 || "").localeCompare(b.日付 || "") || (a.id || "").localeCompare(b.id || "")
+            );
+          });
+        if (!rows.length) return null;
+        var company = co || rows[0].会社名;
+        rows = rows
+          .filter(function (r) {
+            return r.会社名 === company;
+          })
+          .slice(0, 8);
+        if (!rows.length) return null;
+        return { co: company, month: month, rows: rows };
+      }
+      // 1枚ぶんの本物のPDFを作る（同じ物は作り直さない）
+      async function tplThumbBytes(design, vkey, co) {
+        var samp = tplSampleRows(co);
+        if (!samp) return null; // ★1件も無い時は「まだ紙が無い」と正直に出す（作り物を出さない）★
+        var key = design + "|" + vkey + "|" + samp.co + "|" + samp.month + "|" + samp.rows.length;
+        if (_tplThumbCache[key]) return _tplThumbCache[key];
+        var v =
+          designVariants(design).filter(function (x) {
+            return x.key === vkey;
+          })[0] || designVariants(design)[0];
+        // ★実際に刷る時と同じ関数・同じ設定★。デザインと種類だけ この見本の物に差し替える。
+        var iss = issuerForEngine(samp.co);
+        iss = Object.assign({}, iss, {
+          pdfDesign: design,
+          headerStyle: v.headerStyle,
+          logoMode: v.logoMode,
+        });
+        var bytes = await InvoicePDF.buildOne(
+          MASTER,
+          samp.co,
+          samp.rows,
+          samp.month,
+          iss,
+          InvoicePDF.invoiceNoFor(MASTER, CURRENT_ACCOUNT, samp.month, samp.co, DB)
+        );
+        _tplThumbCache[key] = bytes;
+        return bytes;
+      }
+      var _tplThumbSeq = 0;
+      // 画面に出ている見本の枠を、1枚ずつ 本物の紙で埋める
+      //   ★見えている枠だけ★（閉じている会社の分まで作らない＝開いた時に作る）
+      async function paintTplThumbs(root) {
+        var boxes = [].filter.call(
+          (root || document).querySelectorAll(".tpl-thumb-real"),
+          function (b) {
+            var r = b.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          }
+        );
+        if (!boxes.length) return;
+        var seq = ++_tplThumbSeq;
+        if (typeof InvoicePDF === "undefined") return; // まだ読み込み中＝「作っています…」のまま
+        for (var i = 0; i < boxes.length; i++) {
+          if (seq !== _tplThumbSeq) return; // 別の画面に切り替わった＝やめる
+          var box = boxes[i];
+          try {
+            var host = box.closest("[data-co]"); // 会社ごとテンプレの中なら その会社の紙で見せる
+            var bytes = await tplThumbBytes(
+              box.dataset.design,
+              box.dataset.variant,
+              host ? host.dataset.co : null
+            );
+            if (seq !== _tplThumbSeq) return;
+            if (!bytes) {
+              box.innerHTML =
+                '<span class="tpl-thumb-msg">明細を1件 入れると<br />ここに実際の紙が出ます</span>';
+              continue;
+            }
+            var pdfjs = await ensurePdfjs();
+            var pdf = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
+            var pg = await pdf.getPage(1);
+            var w = Math.max(120, Math.round(box.getBoundingClientRect().width || 150));
+            var vp0 = pg.getViewport({ scale: 1 });
+            var vp = pg.getViewport({ scale: (w * 2) / vp0.width }); // 2倍解像度＝縮めても字が潰れない
+            var cv = document.createElement("canvas");
+            cv.width = vp.width;
+            cv.height = vp.height;
+            await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+            if (seq !== _tplThumbSeq) return;
+            box.innerHTML = "";
+            box.appendChild(cv);
+          } catch (e) {
+            box.innerHTML = '<span class="tpl-thumb-msg">見本を作れませんでした</span>';
+          }
+        }
       }
       var DESIGN_VARIANTS = {
         elegant: [
@@ -9484,7 +9567,8 @@
               "')\">" +
               dateCell +
               '<div class="li-main"><div class="li-dest">' +
-              esc(r.行き先 || "（行き先なし）") +
+              // ★行き先の文字は エンジン1本から（紙・Excelと同じ物）★ 2026-08-18
+              esc(MeisaiEngine.utils.routeTextOf(r) || "（行き先なし）") +
               '</div><div class="li-meta">' +
               esc(meta) +
               "</div></div>" +
@@ -10017,7 +10101,7 @@
                 v.key +
                 "')\">" +
                 '<div class="tpl-badge">✓</div>' +
-                tplThumbSvg(design, v) +
+                tplThumbBox(design, v) +
                 '<div class="tpl-meta"><div class="tpl-name">' +
                 esc(v.label) +
                 '</div><div class="tpl-desc">' +
@@ -10077,12 +10161,17 @@
       function toggleMasterBody(hd) {
         var body = hd.nextElementSibling;
         body.classList.toggle("open");
+        // ★開いた時に その会社の紙で見本を作る★（閉じている分は作らない）
+        if (body.classList.contains("open")) paintTplThumbs(body);
       }
       function reopen(co) {
         // マスタ再描画後、編集中の会社を開いたまま保つ
         renderMaster();
         var b = document.querySelector('.master-co-body[data-co="' + CSS.escape(co) + '"]');
-        if (b) b.classList.add("open");
+        if (b) {
+          b.classList.add("open");
+          paintTplThumbs(b); // ★見本＝実際の紙★
+        }
       }
       function toggleItem(co, key) {
         var m = MASTER[co];
@@ -10407,7 +10496,8 @@
           tot += Number(r.金額) || 0;
           aoa.push(
             cols.map(function (c) {
-              var v = r[c];
+              // ★行き先は エンジン1本から（画面・紙と同じ物）★ 2026-08-18
+              var v = c === "行き先" ? MeisaiEngine.utils.routeTextOf(r) : r[c];
               if (nums[c]) return v === "" || v == null ? "" : Number(v);
               return v == null ? "" : v;
             })

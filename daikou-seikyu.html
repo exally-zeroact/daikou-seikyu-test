@@ -2,7 +2,7 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <!-- ★ホーム画面に置くとこの名前になる。Exally ではなく ダイコメ★ (2026-08-09) -->
     <title>ダイコメ 代行請求</title>
     <link
@@ -488,7 +488,7 @@
         padding: 10px 12px;
         border: 1.5px solid #dbe7f7;
         border-radius: 10px;
-        font-size: 14px;
+        font-size: 16px;
         font-family: "Noto Sans JP", sans-serif;
         color: #333333;
         outline: none;
@@ -500,11 +500,10 @@
         border-color: #007aff;
       }
       .finput::placeholder {
-        color: #8A94A6;
+        color: #8a94a6;
       }
       .fnum {
         font-family: "DM Mono", monospace;
-        text-align: right;
       }
       .fselect {
         appearance: none;
@@ -541,7 +540,7 @@
       }
       .btn-ghost {
         background: #f2f7ff;
-        color: #0A5FD0;
+        color: #0a5fd0;
         border: 1.5px solid #cfe0ff;
         padding: 11px 14px;
         font-size: 13px;
@@ -778,7 +777,7 @@
       .scope-clear {
         background: #f2f7ff;
         border: 1.5px solid #cfe0ff;
-        color: #0A5FD0;
+        color: #0a5fd0;
         font-size: 11px;
         font-weight: 700;
         padding: 4px 10px;
@@ -865,7 +864,7 @@
         padding: 9px 10px;
         border: 1.5px solid #e2eaf4;
         border-radius: 9px;
-        font-size: 14px;
+        font-size: 16px;
         font-family: "Noto Sans JP", sans-serif;
         color: #0a5fd0;
         outline: none;
@@ -876,7 +875,6 @@
       }
       .entry-inp.num {
         font-family: "DM Mono", monospace;
-        text-align: right;
       }
       /* 日付：カレンダーで選んで、表示は M/D（6/15） */
       .date-wrap {
@@ -888,7 +886,7 @@
         padding: 9px 10px;
         border: 1.5px solid #e2eaf4;
         border-radius: 9px;
-        font-size: 14px;
+        font-size: 16px;
         font-family: "DM Mono", monospace;
         text-align: center;
         color: #0a5fd0;
@@ -896,7 +894,7 @@
         pointer-events: none;
       }
       .date-show.empty {
-        color: #8A94A6;
+        color: #8a94a6;
       }
       .date-wrap:focus-within .date-show {
         border-color: #007aff;
@@ -941,7 +939,7 @@
         border-radius: 10px;
         font-size: 13px;
         font-weight: 700;
-        color: #0A5FD0;
+        color: #0a5fd0;
         cursor: pointer;
         font-family: "Noto Sans JP", sans-serif;
       }
@@ -993,7 +991,7 @@
       }
       .li-empty {
         text-align: center;
-        color: #8A94A6;
+        color: #8a94a6;
         font-size: 12px;
         padding: 30px 0;
       }
@@ -1004,7 +1002,7 @@
       }
       .filterbar .fselect,
       .filterbar .finput {
-        font-size: 13px;
+        font-size: 16px;
         padding: 8px 10px;
       }
 
@@ -1031,7 +1029,7 @@
         font-family: "DM Mono", monospace;
         font-size: 14px;
         font-weight: 500;
-        color: #0a5fd0;
+        color: #333333;
         margin-top: 2px;
       }
       .pay-sum-cell.rem .pay-sum-val {
@@ -1055,7 +1053,7 @@
       .pay-co {
         font-size: 13px;
         font-weight: 700;
-        color: #0a5fd0;
+        color: #333333;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -1067,14 +1065,13 @@
         font-family: "DM Mono", monospace;
       }
       .pay-right {
-        text-align: right;
         white-space: nowrap;
       }
       .pay-amt {
         font-family: "DM Mono", monospace;
         font-size: 13px;
         font-weight: 500;
-        color: #0a5fd0;
+        color: #333333;
       }
       .pay-rem {
         font-family: "DM Mono", monospace;
@@ -1193,7 +1190,7 @@
         flex: 1;
         font-size: 13px;
         font-weight: 800;
-        color: #0a5fd0;
+        color: #333333;
       }
       /* 取り消しボタン付きトースト（通常トーストと別） */
       .toast-undo {
@@ -1246,12 +1243,8 @@
         font-size: 10px;
         font-weight: 700;
         color: #555555;
-        text-align: right;
         padding: 6px 4px;
         border-bottom: 1.5px solid #dbe7f7;
-      }
-      .rep-table th:first-child {
-        text-align: left;
       }
       .rep-table td {
         padding: 9px 4px;
@@ -1261,7 +1254,7 @@
       .rep-co {
         font-size: 12px;
         font-weight: 700;
-        color: #0a5fd0;
+        color: #333333;
         display: flex;
         align-items: center;
         gap: 6px;
@@ -1273,8 +1266,7 @@
       }
       .rep-n {
         font-family: "DM Mono", monospace;
-        text-align: right;
-        color: #0a5fd0;
+        color: #333333;
         white-space: nowrap;
       }
       .rep-rem {
@@ -1284,7 +1276,7 @@
         border-top: 1.5px solid #dbe7f7;
         border-bottom: none;
         font-weight: 700;
-        color: #0a5fd0;
+        color: #333333;
         padding-top: 10px;
       }
 
@@ -1362,7 +1354,7 @@
       .tpl-name {
         font-weight: 700;
         font-size: 13px;
-        color: #0a5fd0;
+        color: #333333;
       }
       .tpl-desc {
         font-size: 11px;
@@ -1417,7 +1409,7 @@
         border: 1px solid #cfe0ff;
         border-radius: 12px;
         font-size: 12px;
-        color: #0a5fd0;
+        color: #555555;
         line-height: 1.5;
       }
 
@@ -1638,7 +1630,7 @@
         align-items: center;
         font-size: 13px;
         font-weight: 700;
-        color: #0a5fd0;
+        color: #333333;
         padding: 0 6px;
       }
       .dnd-del {
@@ -1661,7 +1653,7 @@
       .addcustom-inp {
         flex: 1;
         min-width: 0;
-        font-size: 13px;
+        font-size: 16px;
         padding: 8px 10px;
       }
       .addcustom-btn {
@@ -1674,9 +1666,8 @@
         border: 1.5px solid #e2eaf4;
         border-radius: 8px;
         font-family: "DM Mono", monospace;
-        font-size: 12px;
-        text-align: right;
-        color: #0a5fd0;
+        font-size: 16px;
+        color: #333333;
         outline: none;
       }
       .dnd-w:focus {
@@ -1916,6 +1907,9 @@
         display: flex;
         align-items: center;
         gap: 6px;
+        /* ★入力欄を16pxにすると 狭い画面で会社名が欠ける（375で+20px 実測）★
+           ＝欠けさせずに 次の行へ落とす。見張り: tests/e2e/zoom-allowed.spec.js */
+        flex-wrap: wrap;
       }
       .edit-live .b {
         background: #416ea8;
@@ -1940,7 +1934,7 @@
         flex: none;
         font-size: 10.5px;
         font-weight: 800;
-        color: #6B7787;
+        color: #6b7787;
         padding: 0 8px 0 4px;
       }
       .etool {
@@ -2503,10 +2497,10 @@
         border: none;
         cursor: pointer;
         font-family: "Noto Sans JP", sans-serif;
-        color: #6B7787;
+        color: #6b7787;
       }
       .nav-item.active {
-        color: #0A5FD0;
+        color: #0a5fd0;
       }
       .nav-ic {
         font-size: 18px;
@@ -2549,7 +2543,7 @@
       .modal-title {
         font-size: 15px;
         font-weight: 700;
-        color: #0a5fd0;
+        color: #333333;
       }
       .modal-x {
         background: none;
@@ -2562,6 +2556,48 @@
         cursor: pointer;
         font-family: "Noto Sans JP", sans-serif;
       }
+      /* ===== ★列の揃えは ここだけで決める★（指示役 2026-08-18 A1） =====
+         見出し＝中央 ／ 数字・日付＝右 ／ 言葉＝左 ／ 1文字＝中央 ／ ラベル＝左・値＝右
+         ★これは「列（横に並ぶ物）」の決まり★。カード（縦に積む物・pay-summary等）は中央のまま。
+         ★ここ以外で 列の text-align を書かない★
+         見張り: tests/e2e/screen-align.spec.js（描き終わった画面を 幅375/390/412 で測る） */
+      /* ①見出し用 */
+      .rep-table th,
+      .al-head {
+        text-align: center;
+      }
+      /* ②中身用（役割で決まる：右＝数字と日付／左＝言葉／中央＝1文字） */
+      .li-date,
+      .li-amt,
+      .pay-right,
+      .rep-n,
+      .fnum,
+      .entry-inp.num,
+      .dnd-w,
+      .al-num {
+        text-align: right;
+      }
+      .li-dest,
+      .li-meta,
+      .pay-co,
+      .pay-sub,
+      .rep-co,
+      .dnd-name,
+      .al-word {
+        text-align: left;
+      }
+      .al-one {
+        text-align: center;
+      }
+      /* ★入力欄は16px以上★（iOSは16px未満の欄に触れると 勝手に拡大して 戻らない）
+         ＝ズーム禁止(maximum-scale=1)を外した代わりの決まり。新しく足した欄の受け皿。
+         見張り: tests/e2e/zoom-allowed.spec.js */
+      input,
+      select,
+      textarea {
+        font-size: 16px;
+      }
+
       @media (min-width: 560px) {
         .modal-ov {
           align-items: center;
@@ -2861,7 +2897,8 @@
           >
             <b>今まで請求書番号は紙に刷っていません。</b>
             ここを<b>表示</b>にした日から、番号がお客さんに渡り始めます。<br />
-            <b>それ以前の番号は 誰にも渡っていません</b>（渡した紙と食い違う心配はありません）。<br />
+            <b>それ以前の番号は 誰にも渡っていません</b
+            >（渡した紙と食い違う心配はありません）。<br />
             表示にした後は、<b>一度出した番号は変わりません</b>（出した時に控えと一緒に記録します）。
           </div>
           <div class="align-row" style="margin-top: 12px">
@@ -3174,9 +3211,9 @@
               margin-left: auto;
               width: auto;
               min-width: 92px;
-              max-width: 44%;
+              max-width: 100%;
               padding: 4px 8px;
-              font-size: 12px;
+              font-size: 16px;
             "
             onchange="editPickCompany()"
           ></select>
@@ -3601,7 +3638,9 @@
         // ★発行の控えを読む（繰越の材料）★
         INVOICES = [];
         try {
-          var ivs = await SB.from("invoices").select("month, company, invoice_no, total, issued_at");
+          var ivs = await SB.from("invoices").select(
+            "month, company, invoice_no, total, issued_at"
+          );
           if (ivs.error) cloudErr("請求書の控え読込", ivs.error);
           else INVOICES = ivs.data || [];
         } catch (e) {
@@ -8346,9 +8385,9 @@
       function loadIssuer() {
         try {
           ISSUER_SETTINGS = JSON.parse(localStorage.getItem(ISSUER_KEY)) || {};
-        Object.keys(ISSUER_SETTINGS).forEach(function (k) {
-          migrateRegno(ISSUER_SETTINGS[k]);
-        });
+          Object.keys(ISSUER_SETTINGS).forEach(function (k) {
+            migrateRegno(ISSUER_SETTINGS[k]);
+          });
         } catch (e) {
           ISSUER_SETTINGS = {};
         }
@@ -8511,7 +8550,8 @@
           if (logo) p.push('<rect x="44" y="22" width="12" height="8" rx="1" fill="' + acc + '"/>');
         } else {
           p.push('<rect x="10" y="12" width="30" height="6" rx="1" fill="' + ink + '"/>');
-          if (logo) p.push('<rect x="76" y="11" width="14" height="10" rx="1" fill="' + acc + '"/>');
+          if (logo)
+            p.push('<rect x="76" y="11" width="14" height="10" rx="1" fill="' + acc + '"/>');
         }
         p.push(
           '<line x1="10" y1="' +
@@ -8530,9 +8570,21 @@
         p.push('<rect x="10" y="68" width="80" height="8" fill="' + band + '"/>');
         for (var i = 0; i < 4; i++) {
           var y = 80 + i * 8;
-          p.push('<line x1="10" y1="' + y + '" x2="90" y2="' + y + '" stroke="' + rule + '" stroke-width="0.6"/>');
-          p.push('<rect x="13" y="' + (y - 4) + '" width="34" height="2.4" rx="1" fill="' + rule + '"/>');
-          p.push('<rect x="74" y="' + (y - 4) + '" width="14" height="2.4" rx="1" fill="' + rule + '"/>');
+          p.push(
+            '<line x1="10" y1="' +
+              y +
+              '" x2="90" y2="' +
+              y +
+              '" stroke="' +
+              rule +
+              '" stroke-width="0.6"/>'
+          );
+          p.push(
+            '<rect x="13" y="' + (y - 4) + '" width="34" height="2.4" rx="1" fill="' + rule + '"/>'
+          );
+          p.push(
+            '<rect x="74" y="' + (y - 4) + '" width="14" height="2.4" rx="1" fill="' + rule + '"/>'
+          );
         }
         // 合計
         p.push('<line x1="52" y1="118" x2="90" y2="118" stroke="' + acc + '" stroke-width="0.8"/>');
@@ -9837,7 +9889,7 @@
           '<div class="chip-row">' +
           chips +
           "</div>" +
-          '<div class="addcustom"><input class="finput addcustom-inp" placeholder="自由な項目名（例：台数 / 担当）" ' +
+          '<div class="addcustom"><input class="finput addcustom-inp" placeholder="自由な項目名（例：台数）" ' +
           NOFILL +
           " onkeydown=\"if(event.key==='Enter'){addCustomItem('" +
           esc(co) +
@@ -9887,12 +9939,12 @@
           '<div class="align-row">' +
           '<button type="button" class="align-btn' +
           (m.taxMode === "外税" ? "" : " on") +
-          "\" onclick=\"setMasterField('" +
+          '" onclick="setMasterField(\'' +
           esc(co) +
           "','taxMode','内税')\">内税（金額は税込）</button>" +
           '<button type="button" class="align-btn' +
           (m.taxMode === "外税" ? " on" : "") +
-          "\" onclick=\"setMasterField('" +
+          '" onclick="setMasterField(\'' +
           esc(co) +
           "','taxMode','外税')\">外税（金額は税抜）</button>" +
           "</div></div>" +

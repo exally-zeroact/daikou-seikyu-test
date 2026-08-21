@@ -34,6 +34,10 @@ test.setTimeout(240000);
 const BLUE = ["#0A5FD0", "#0B57D0", "#007AFF"];
 // 読ませる字の濃さ（これより薄い＝読みにくい）。空の時の案内だけ例外。
 const INK = "#333333";
+// ★2026-08-21 追加：読ませる字に残っていた「薄い青灰」★（指示役が絵を読んで見つけた）
+//   本文・値・ラベルは #333333 / #555555 / #666666 のどれか。
+//   下の色は ★読む字には使わない★（押せる物・選ばれている物は今までどおり色を付けてよい）
+const LIGHT = ["#5A6B82", "#6B7787", "#A9B5C4", "#2F517D", "#4A6B86"];
 
 // 描き終わった画面から「文字とその色」を1つずつ拾う
 function grabInk(where) {
@@ -112,6 +116,14 @@ for (const W of [375, 390, 412])
       blueOnRead,
       "★読むだけの字に 押せる色（青）が付いている:\n  " +
         blueOnRead.map((f) => `${f.scr} ${f.tag}.${f.cls} 「${f.t}」 ${f.col}`).join("\n  ")
+    ).toEqual([]);
+
+    // ①-2 読むだけの字に「薄い青灰」が残っていたら赤（2026-08-21）
+    const lightOnRead = found.filter((f) => LIGHT.includes(f.col) && !f.ok);
+    expect(
+      lightOnRead,
+      "★読ませる字が薄い青灰のまま（#333/#555/#666 のどれかにする）:\n  " +
+        lightOnRead.map((f) => `${f.scr} ${f.tag}.${f.cls} 「${f.t}」 ${f.col}`).join("\n  ")
     ).toEqual([]);
 
     // ② 金額に青が付いていたら赤（司さんが最初に言った所）

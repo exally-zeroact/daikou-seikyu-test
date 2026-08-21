@@ -147,7 +147,7 @@
       .exl-pick-h {
         font-size: 12px;
         font-weight: 800;
-        color: #2f517d;
+        color: #333333;
         margin: 0 0 4px;
       }
       .exl-pick {
@@ -591,7 +591,7 @@
       }
       .itb-lbl {
         font-size: 11px;
-        color: #5a6b82;
+        color: #555555;
         font-weight: 700;
         white-space: nowrap; /* 「お支払期限」等のラベルを縦折れさせない */
       }
@@ -796,7 +796,7 @@
       .align-lbl {
         font-size: 11px;
         font-weight: 700;
-        color: #5a6b82;
+        color: #555555;
         margin-right: 2px;
       }
       .align-btn {
@@ -866,7 +866,7 @@
         border-radius: 9px;
         font-size: 16px;
         font-family: "Noto Sans JP", sans-serif;
-        color: #0a5fd0;
+        color: #333333;
         outline: none;
         background: #ffffff;
       }
@@ -888,8 +888,9 @@
         border-radius: 9px;
         font-size: 16px;
         font-family: "DM Mono", monospace;
-        text-align: center;
-        color: #0a5fd0;
+        /* ★A1の決まり：数字・日付は右（ここだけ中央だった）★ 2026-08-21 */
+        text-align: right;
+        color: #333333;
         background: #ffffff;
         pointer-events: none;
       }
@@ -930,6 +931,33 @@
         background: #fdf1f0;
         color: #c0392b;
       }
+      /* ★2026-08-21 A3-④ 押せる物の色は1つ（濃紺と青が混ざっていた）★
+         「＋ 行を追加」も「保存する」も 同じ青（#0A5FD0系）で見せる。 */
+      /* ★よく行く所（押すと入る）★ 2026-08-21 */
+      .dest-often {
+        margin-top: 6px;
+        font-size: 11px;
+        color: #555555;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+      .dest-chip {
+        border: 1.5px solid #cfe0ff;
+        background: #f2f7ff;
+        color: #0a5fd0;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        font-family: "Noto Sans JP", sans-serif;
+        cursor: pointer;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .add-line {
         width: 100%;
         margin-top: 8px;
@@ -937,7 +965,7 @@
         background: #f2f7ff;
         border: 1.5px dashed #cfe0ff;
         border-radius: 10px;
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 700;
         color: #0a5fd0;
         cursor: pointer;
@@ -952,12 +980,57 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 11px 4px;
+        /* ★1件を1行に近づける（潰さない）★ 2026-08-21
+           日付を「日ごとの見出し」へ移したぶん、上下の余白を 11px→8px に詰めた。
+           実測は下の見張り（tests/e2e/list-a2.spec.js）が毎回 数える */
+        padding: 7px 4px;
         border-bottom: 1px solid #eaeff5;
         cursor: pointer;
       }
       .list-item:last-child {
         border-bottom: none;
+      }
+      /* ★2026-08-21 A2 一覧の作り直し（司さん 08-15 実機の6つ）★
+         ②会社名を主役・行き先を副（前は逆だった）／⑤日ごとにまとめて日ごとの合計／
+         ④頭に「件数と合計」／⑥1件を1行に近づける（日付は日ごとの見出しへ移した） */
+      .list-sum {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        padding: 2px 2px 8px;
+        font-size: 12px;
+        color: #555555;
+      }
+      .list-sum .n {
+        font-weight: 700;
+        color: #333333;
+      }
+      .list-sum .v {
+        font-family: "DM Mono", monospace;
+        font-size: 15px;
+        font-weight: 700;
+        color: #333333;
+      }
+      .li-day {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        padding: 7px 2px 5px;
+        border-bottom: 1.5px solid #dbe7f7;
+        margin-top: 4px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #333333;
+      }
+      .li-day .d {
+        font-family: "DM Mono", monospace;
+      }
+      .li-day .s {
+        font-family: "DM Mono", monospace;
+        font-weight: 500;
+        color: #555555;
       }
       .li-date {
         font-family: "DM Mono", monospace;
@@ -969,18 +1042,26 @@
         flex: 1;
         min-width: 0;
       }
+      /* ★行き先＝副（読ませる字・薄い黒）★ */
       .li-dest {
-        font-size: 13px;
-        font-weight: 500;
+        font-size: 12px;
+        line-height: 1.25;
+        font-weight: 400;
+        color: #555555;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 1px;
+      }
+      /* ★会社名＝主役（探す物を一番 濃く・大きく）★ */
+      .li-meta {
+        font-size: 14px;
+        line-height: 1.3;
+        font-weight: 700;
         color: #333333;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-      }
-      .li-meta {
-        font-size: 10px;
-        color: #555555;
-        margin-top: 1px;
       }
       .li-amt {
         font-family: "DM Mono", monospace;
@@ -1380,7 +1461,7 @@
       }
       .tpl-desc {
         font-size: 11px;
-        color: #5a6b82;
+        color: #555555;
         margin-top: 2px;
         line-height: 1.35;
       }
@@ -1632,9 +1713,13 @@
         background: #f2f7ff;
         border-top: 2px solid #007aff;
       }
+      /* ★取っ手は「押せる物」＝色は付けてよいが 読める濃さにする★ 2026-08-21 */
+      .master-co-caret {
+        color: #666666;
+      }
       .dnd-grip {
         cursor: grab;
-        color: #a9b5c4;
+        color: #666666;
         font-size: 16px;
         touch-action: none;
         user-select: none;
@@ -1697,7 +1782,7 @@
       }
       .dnd-wu {
         font-size: 10px;
-        color: #a9b5c4;
+        color: #666666;
       }
       .toggle-row {
         display: flex;
@@ -1808,7 +1893,7 @@
       .edit-chips-lbl {
         font-size: 10.5px;
         font-weight: 800;
-        color: #2f517d;
+        color: #555555;
         margin: 0 2px 3px;
       }
       .edit-chips {
@@ -1956,7 +2041,7 @@
         flex: none;
         font-size: 10.5px;
         font-weight: 800;
-        color: #6b7787;
+        color: #555555;
         padding: 0 8px 0 4px;
       }
       .etool {
@@ -2060,7 +2145,7 @@
       }
       .edit-panel .note {
         font-size: 11.5px;
-        color: #5a6b82;
+        color: #555555;
         margin: 0 0 10px;
         line-height: 1.5;
       }
@@ -2132,7 +2217,7 @@
         display: flex;
         justify-content: space-between;
         font-size: 11px;
-        color: #5a6b82;
+        color: #555555;
         font-weight: 700;
       }
       .ep-chip {
@@ -2519,7 +2604,7 @@
         border: none;
         cursor: pointer;
         font-family: "Noto Sans JP", sans-serif;
-        color: #6b7787;
+        color: #555555;
       }
       .nav-item.active {
         color: #0a5fd0;
@@ -2734,9 +2819,15 @@
     <!-- ===== 入力 ===== -->
     <section class="screen active" id="scr-input">
       <div class="scr-title">明細を入力</div>
+      <!-- ★2026-08-21 A3-⑤ 記入ガイドは1行。詳しくは畳む（開いた時に3行 読ませない）★ -->
       <div class="scr-sub">
-        会社を選ぶと、その会社に必要な項目だけ表示されます。まとめて入力 →
-        保存で<b>Excel／DBに追加</b>（保存した時点でクラウドに入り、PCのExcelは開くと最新になります）。
+        会社を選ぶと、その会社の項目だけ出ます。
+        <details style="display: inline">
+          <summary style="display: inline; cursor: pointer">詳しく</summary>
+          <div style="margin-top: 4px">
+            まとめて入力して保存します。保存した時点でクラウドに入り、PCのExcelは開くと最新になります。
+          </div>
+        </details>
       </div>
 
       <div class="card">
@@ -2753,9 +2844,7 @@
         <div id="entryBody"></div>
         <button class="add-line" onclick="addEntryRow()">＋ 行を追加</button>
         <div style="margin-top: 12px">
-          <button class="btn btn-primary" onclick="saveEntries()">
-            保存する（Excel／DBに追加）
-          </button>
+          <button class="btn btn-primary" onclick="saveEntries()">保存する</button>
         </div>
       </div>
     </section>
@@ -2763,7 +2852,7 @@
     <!-- ===== 一覧 / 修正 ===== -->
     <section class="screen" id="scr-list">
       <div class="scr-title">明細一覧 / 修正</div>
-      <div class="scr-sub">タップで1件ずつ編集・削除できます（idで特定）。</div>
+      <div class="scr-sub">タップで1件ずつ 直せます・消せます。</div>
       <div class="filterbar">
         <select class="fselect" id="listCompany" onchange="renderList()">
           <option value="">全社</option>
@@ -2772,6 +2861,7 @@
           <option value="">全期間</option>
         </select>
       </div>
+      <div class="list-sum" id="listSum"></div>
       <div class="card">
         <div id="listBody"></div>
       </div>
@@ -2819,7 +2909,7 @@
               oninput="setIssuer('issuer', this.value)"
               onchange="toast('発行者を保存しました（請求書に反映）')"
             ></textarea>
-            <div style="font-size: 10px; color: #5a6b82; margin-top: 6px; line-height: 1.6">
+            <div style="font-size: 10px; color: #555555; margin-top: 6px; line-height: 1.6">
               例：屋号／事業名／〒／住所／TEL。<b>事業名が無ければ、その行を消すだけ。</b>代表者名・FAX・メールなど足すのも自由。1行目が少し大きく出ます。<br />
               <b>登録番号は下の欄</b>で入れます（自由入力の行に書かなくて大丈夫です）。<br />
               <b>文字揃えは「編集」タブ → 揃え</b> で（見ながら調整できます）。
@@ -2910,7 +3000,7 @@
           <div
             style="
               font-size: 11px;
-              color: #5a6b82;
+              color: #555555;
               margin-top: 8px;
               line-height: 1.7;
               border-left: 3px solid #dbe7f7;
@@ -2956,7 +3046,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: #a9b5c4;
+                color: #666666;
                 font-size: 11px;
                 text-align: center;
                 overflow: hidden;
@@ -3023,7 +3113,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: #a9b5c4;
+                color: #666666;
                 font-size: 11px;
                 text-align: center;
                 overflow: hidden;
@@ -3207,6 +3297,7 @@
         </button>
       </div>
       <div id="paySummary" class="pay-summary"></div>
+      <div class="list-sum" id="payCount"></div>
       <div id="payBody"></div>
       <!-- 複数選択して一括「全入金」する時だけ出る固定バー（ナビの上） -->
       <div class="pay-sel-bar" id="paySelBar" style="display: none">
@@ -6121,6 +6212,11 @@
           b.classList.toggle("active", b.dataset.scr === name);
         });
         document.getElementById("appTitle").textContent = titles[name] || "代行請求";
+        // ★2026-08-21 A2-③ 画面を切り替えたら 頭を出す★（前の画面のスクロール位置が残り、
+        //   一番上の説明文が途中から見えていた）
+        try {
+          window.scrollTo(0, 0);
+        } catch (e) {}
         if (name === "input") preselectInputCompany();
         if (name === "list") renderList();
         if (name === "billing") showBillingSeg("invoice"); // 既定＝請求書
@@ -7386,13 +7482,13 @@
             // フォールバック（範囲フィルタ無し）＝従来どおり全部表示。
             h = '<div class="ph">↔️ 揃え</div>';
             h +=
-              '<div class="note" style="font-weight:800;color:#5a6b82;margin-bottom:2px">あいさつ文</div>';
+              '<div class="note" style="font-weight:800;color:#333333;margin-bottom:2px">あいさつ文</div>';
             h += _algGroup("選択範囲を", _av(s.posLead), "editSetLeadPos");
             h +=
-              '<div class="note" style="font-weight:800;color:#5a6b82;margin:10px 0 2px">ご請求金額</div>';
+              '<div class="note" style="font-weight:800;color:#333333;margin:10px 0 2px">ご請求金額</div>';
             h += _algGroup("選択範囲を", _av(s.posGrand), "editSetGrandPos");
             h +=
-              '<div class="note" style="font-weight:800;color:#5a6b82;margin:10px 0 2px">会社名・住所（自社）</div>' +
+              '<div class="note" style="font-weight:800;color:#333333;margin:10px 0 2px">会社名・住所（自社）</div>' +
               (isEle
                 ? ""
                 : '<div class="note" style="margin-top:0">この形（枠と帯）は右で固定です（「線ひかえめ」なら変えられます）。</div>');
@@ -7842,6 +7938,30 @@
         var shown = rows.filter(function (x) {
           return !statusF || x.st === statusF;
         });
+        /* ★2026-08-21 A3-⑦ バッジ29 と 画面31 の食い違い★
+           数え方は summarize() 1本で同じ。違っていたのは ★数える範囲★：
+             バッジ ＝ ★全期間★の「未入金＋一部入金」の件数
+             この画面 ＝ ★絞り込んだ後★の一覧
+           ＝同じ物を2か所で別々に決めていた。★どちらの数かを その場に書く★。 */
+        var yetAll = summarize(null, "").rows.filter(function (x) {
+          return x.st !== "paid";
+        }).length;
+        var yetShown = shown.filter(function (x) {
+          return x.st !== "paid";
+        }).length;
+        var cntEl = document.getElementById("payCount");
+        if (cntEl)
+          cntEl.innerHTML =
+            '<span><span class="n">' +
+            shown.length +
+            "件</span>" +
+            (month || statusF ? "（絞り込み中）" : "") +
+            "</span><span>未入金・一部入金 " +
+            '<span class="v">' +
+            yetShown +
+            "件</span>" +
+            (yetShown !== yetAll ? "（全期間 " + yetAll + "件）" : "") +
+            "</span>";
         if (!shown.length) {
           box.innerHTML = '<div class="li-empty">該当する請求がありません</div>';
           return;
@@ -7915,6 +8035,7 @@
           })
           .join("");
         _updatePaySelBar();
+        updatePayBadge(); // ★同じ数え方(summarize)で 同時に数え直す★ 2026-08-21
       }
       // ===== 複数選択して一括「全入金」 =====
       var _paySelMode = false;
@@ -8915,7 +9036,7 @@
           rh.textContent = ng
             ? ng + " ／ 入っていないと 請求書は出せません"
             : "T＋13桁で入っています（請求書に刷られます）";
-          rh.style.color = ng ? "#c0392b" : "#5a6b82";
+          rh.style.color = ng ? "#c0392b" : "#555555";
         }
         var ia = s.issuerAlign || "left";
         var ba = s.bankAlign || "left";
@@ -9229,6 +9350,9 @@
       }
       function renderEntry() {
         var co = document.getElementById("inputCompany").value;
+        // ★候補の一覧は 画面を組み立てる前に作る★ 2026-08-21
+        //   後で呼んでいたので「よく行く所」が1回目に出なかった（自分で作ったバグ）。
+        refreshDestList(co);
         var items = inputItemsOrder(MASTER[co].items);
         var body = entryRows
           .map(function (row, i) {
@@ -9261,7 +9385,7 @@
                     "',this)\"></div>";
                 } else if (t === "number") {
                   inp =
-                    '<input class="entry-inp num" inputmode="numeric" placeholder="0" value="' +
+                    '<input class="entry-inp num" inputmode="numeric" placeholder="" value="' +
                     esc(row[k]) +
                     '" ' +
                     NOFILL +
@@ -9272,6 +9396,9 @@
                     "',this)\">";
                 } else if (k === "行き先") {
                   // 行き先は自前のサジェスト（タップで履歴表示・打つと絞り込み・iOSでも確実）
+                  // ★2026-08-21 A3-③ 空欄を並べて埋めさせない★
+                  //   その会社で よく出る行き先を ★先に3つ出す★（押すとそのまま入る）。
+                  //   出どころは refreshDestList（頻度順）＝サジェストと同じ1本。
                   inp =
                     '<div class="sugg-wrap">' +
                     '<input class="entry-inp" value="' +
@@ -9283,7 +9410,8 @@
                     i +
                     ',this)" onblur="hideSugg(this)">' +
                     '<div class="sugg-box"></div>' +
-                    "</div>";
+                    "</div>" +
+                    destOftenHtml(i);
                 } else {
                   inp =
                     '<input class="entry-inp" value="' +
@@ -9321,7 +9449,39 @@
           })
           .join("");
         document.getElementById("entryBody").innerHTML = body;
-        refreshDestList(co);
+      }
+      /* ★よく行く所を先に3つ出す★（2026-08-21 A3-③ 「聞いてあげる。埋めさせない」）
+         ・出どころは DEST_ALL（refreshDestList が作る 頻度順）＝★サジェストと同じ1本★
+         ・押すと その行の行き先に入る（打ち直さなくてよい）
+         ・まだ1件も明細が無い時は 何も出さない（★作り物の候補を見せない★） */
+      function destOftenHtml(i) {
+        var top = (DEST_ALL || []).slice(0, 3);
+        if (!top.length) return "";
+        return (
+          '<div class="dest-often">よく行く所：' +
+          top
+            .map(function (d) {
+              return (
+                '<button type="button" class="dest-chip" onclick="pickDestOften(' +
+                i +
+                ",'" +
+                String(d).replace(/'/g, "&#39;").replace(/"/g, "&quot;") +
+                "')" +
+                '">' +
+                esc(d) +
+                "</button>"
+              );
+            })
+            .join("") +
+          "</div>"
+        );
+      }
+      function pickDestOften(i, d) {
+        var wrap = document.querySelectorAll("#entryBody .sugg-wrap")[i];
+        var el = wrap && wrap.querySelector(".entry-inp");
+        if (!el) return;
+        el.value = d;
+        if (entryRows[i]) entryRows[i]["行き先"] = d;
       }
       // 行き先サジェストの母集合：過去明細から（その会社優先・少なければ全社）頻度順
       var DEST_ALL = [];
@@ -9502,7 +9662,7 @@
         updatePayBadge();
         entryRows = [blankEntry()];
         renderEntry();
-        toast(recs.length + "件を保存しました（Excel／DBに追加）");
+        toast(recs.length + "件を保存しました");
       }
 
       /* ===================================================================
@@ -9546,35 +9706,90 @@
           return (b._created || "").localeCompare(a._created || ""); // 同じ日付は後から入れた明細を上へ(最新が上)
         });
         var box = document.getElementById("listBody");
+        var sumEl = document.getElementById("listSum");
+        // ★④頭に「◯件／合計 ¥◯」★（絞り込むと数え直る＝今 見えている物の数）
+        var grand = rows.reduce(function (t, r) {
+          return t + (Number(r.金額) || 0);
+        }, 0);
+        if (sumEl)
+          sumEl.innerHTML =
+            '<span><span class="n">' +
+            rows.length +
+            "件</span>" +
+            (co || mo ? "（絞り込み中）" : "") +
+            '</span><span>合計 <span class="v">' +
+            esc(yen(grand)) +
+            "</span></span>";
         if (!rows.length) {
           box.innerHTML = '<div class="li-empty">明細がありません</div>';
           return;
         }
-        box.innerHTML = rows
-          .map(function (r) {
-            var meta = r.会社名 + (r.備考 ? "・" + esc(r.備考) : "");
-            var dateCell = r.日付
-              ? '<div class="li-date">' + esc(mdShort(r.日付)) + "</div>"
-              : '<div class="li-date li-nodate">⚠️日付なし</div>';
-            // 左スワイプで削除（会社マスタと同じ仕組み）・タップで編集
+        // ★⑤日ごとにまとめる（同じ日付を何度も読ませない）＋その日の合計★
+        var days = [];
+        var byDay = {};
+        rows.forEach(function (r) {
+          var k = r.日付 || "";
+          if (!byDay[k]) {
+            byDay[k] = [];
+            days.push(k);
+          }
+          byDay[k].push(r);
+        });
+        var WD = ["日", "月", "火", "水", "木", "金", "土"];
+        box.innerHTML = days
+          .map(function (k) {
+            var list = byDay[k];
+            var dsum = list.reduce(function (t, r) {
+              return t + (Number(r.金額) || 0);
+            }, 0);
+            var head;
+            if (k) {
+              var p = k.split("-");
+              var wd = WD[new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])).getDay()];
+              head =
+                '<div class="li-day"><span class="d">' +
+                esc(mdShort(k)) +
+                "（" +
+                wd +
+                '）</span><span class="s">' +
+                list.length +
+                "件 " +
+                esc(yen(dsum)) +
+                "</span></div>";
+            } else {
+              head =
+                '<div class="li-day"><span class="d">⚠️日付なし</span><span class="s">' +
+                list.length +
+                "件 " +
+                esc(yen(dsum)) +
+                "</span></div>";
+            }
             return (
-              '<div class="list-swipe">' +
-              '<div class="swipe-action"><button class="swipe-del" onclick="deleteRow(\'' +
-              r.id +
-              "')\">削除</button></div>" +
-              '<div class="swipe-content"><div class="list-item" onclick="openEdit(\'' +
-              r.id +
-              "')\">" +
-              dateCell +
-              '<div class="li-main"><div class="li-dest">' +
-              // ★行き先の文字は エンジン1本から（紙・Excelと同じ物）★ 2026-08-18
-              esc(MeisaiEngine.utils.routeTextOf(r) || "（行き先なし）") +
-              '</div><div class="li-meta">' +
-              esc(meta) +
-              "</div></div>" +
-              '<div class="li-amt">' +
-              yen(r.金額 || 0) +
-              "</div></div></div></div>"
+              head +
+              list
+                .map(function (r) {
+                  // ★②会社名が主役・行き先は副★（前は逆だった＝探す物が一番 薄かった）
+                  var co2 = r.会社名 + (r.備考 ? "・" + r.備考 : "");
+                  return (
+                    '<div class="list-swipe">' +
+                    '<div class="swipe-action"><button class="swipe-del" onclick="deleteRow(\'' +
+                    r.id +
+                    "')\">削除</button></div>" +
+                    '<div class="swipe-content"><div class="list-item" onclick="openEdit(\'' +
+                    r.id +
+                    "')\">" +
+                    '<div class="li-main"><div class="li-meta">' +
+                    esc(co2) +
+                    '</div><div class="li-dest">' +
+                    // ★行き先の文字は エンジン1本から（紙・Excelと同じ物）★ 2026-08-18
+                    esc(MeisaiEngine.utils.routeTextOf(r) || "（行き先なし）") +
+                    "</div></div>" +
+                    '<div class="li-amt">' +
+                    yen(r.金額 || 0) +
+                    "</div></div></div></div>"
+                  );
+                })
+                .join("")
             );
           })
           .join("");
@@ -9626,9 +9841,8 @@
           })
           .join("");
         document.getElementById("modalBody").innerHTML =
-          '<div style="font-size:10px;color:#a9b5c4;font-family:DM Mono,monospace;margin-bottom:8px;">id: ' +
-          esc(r.id) +
-          "</div>" +
+          ""; /* ★中の言葉(id)は客に見せない★ 2026-08-21 */
+        "</div>" +
           fields +
           '<div style="display:flex;gap:8px;margin-top:14px;">' +
           '<button class="btn btn-danger btn-sm" style="flex:1;" onclick="deleteRow(\'' +
@@ -9907,7 +10121,7 @@
               .join(" / ")
           ) +
           "</span>" +
-          '<span style="color:#a9b5c4;">▾</span>' +
+          '<span class="master-co-caret">▾</span>' +
           "</div>" +
           '<div class="master-co-body" data-co="' +
           esc(co) +
@@ -10015,7 +10229,7 @@
           " onchange=\"setMasterField('" +
           esc(co) +
           "','carryover',this.checked)\"> 繰越を使う（前回の残りを次の請求に乗せる）</label>" +
-          '<div style="font-size:10px;color:#5a6b82;margin:2px 0 8px 26px;line-height:1.6;">' +
+          '<div style="font-size:10px;color:#555555;margin:2px 0 8px 26px;line-height:1.6;">' +
           "前回繰越額・合計請求額・ご入金額・今回お支払額 が紙とExcelに出ます。" +
           "前回の請求が無い会社は「前回の請求はありません」と出ます（0円とは書きません）。</div>" +
           /* ★内税/外税（値は前から在ったが 切り替える所が無かった＝到達しない分岐だった）★ */
@@ -10308,8 +10522,8 @@
         document.getElementById("modalTitle").textContent = "会社を追加";
         document.getElementById("modalBody").innerHTML =
           '<div class="frow"><div class="flabel">会社名（宛名）</div><input class="finput" id="newCoName" placeholder="例：テスト物流株式会社"></div>' +
-          '<div class="scr-sub" style="margin:2px 0 10px;">保存で<b>Excel／DBに追加</b>。追加後、設定→会社マスタで 項目・順番 を定義できます（初期＝日付/行き先/金額）。</div>' +
-          '<button class="btn btn-primary" onclick="addCompany()">保存する（Excel／DBに追加）</button>';
+          '<div class="scr-sub" style="margin:2px 0 10px;">追加した後、設定→会社マスタで 項目・順番 を決められます（初めは 日付／行き先／金額）。</div>' +
+          '<button class="btn btn-primary" onclick="addCompany()">保存する</button>';
         openModal();
       }
       function addCompany() {
@@ -10335,7 +10549,7 @@
         closeModal();
         renderMaster();
         refreshCompanySelects();
-        toast("保存しました（Excel／DBに追加）");
+        toast("保存しました");
       }
       async function deleteCompany(co) {
         if (!confirm(co + " をマスタから削除します。よろしいですか？（明細データは残ります）"))

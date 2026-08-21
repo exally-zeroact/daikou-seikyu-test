@@ -35,6 +35,11 @@ const COL_SEL = [
   ".dnd-w",
 ].join(",");
 
+// ★2026-08-21 A2で 一覧の日付が「日ごとの見出し」へ移った★
+//   見出しは列ではない（横に並ぶ物ではない）ので 列の決まりは当てない。
+//   ただし ★日付を1つも見ないまま緑にしない★ ため、ここも数える。
+const DAY_HEAD = "#listBody .li-day .d";
+
 function grabAlign(arg) {
   const { where, sel } = arg;
   const out = [];
@@ -43,7 +48,8 @@ function grabAlign(arg) {
   const isNum = (t) =>
     /^[¥￥]?-?[\d,]+(\.\d+)?(円|件|社|台|人|km|mm|%)?$/.test(t) ||
     (t.length <= 14 && /\d/.test(t) && /[¥￥]?[\d,]+(円)?$/.test(t));
-  const isDate = (t) => /^\d{1,4}[/年-]\d{1,2}([/月-]\d{1,2}日?)?$/.test(t);
+  // 「8/14」も「8/14（木）」も日付として数える（2026-08-21 一覧の日ごとの見出し）
+  const isDate = (t) => /^\d{1,4}[/年-]\d{1,2}([/月-]\d{1,2}日?)?(（.）)?$/.test(t);
   const scr = document.querySelector(".scr.on");
   const modal = [...document.querySelectorAll(".modal, .modal-back, .sheet-modal")].find((m) => {
     const r = m.getBoundingClientRect();
@@ -85,7 +91,7 @@ function grabAlign(arg) {
       if (el.matches(sel) || el.closest(sel)) return;
       if (
         el.closest(
-          "button, a, summary, label, select, .pay-summary, .load-card, .tpl-card, .nav-item, .seg, .edit-chips"
+          "button, a, summary, label, select, .pay-summary, .load-card, .tpl-card, .nav-item, .seg, .edit-chips, .list-sum, .li-day"
         )
       )
         return;
@@ -97,6 +103,12 @@ function grabAlign(arg) {
       out.push(g);
     });
   }
+  // 日ごとの見出しの日付（列ではない＝揃えは見ないが、見た数には入れる）
+  for (const root of roots)
+    root.querySelectorAll("#listBody .li-day .d").forEach((el) => {
+      const g = rec(el, "日の見出し");
+      if (g) out.push(Object.assign(g, { headOnly: true }));
+    });
   return out;
 }
 
@@ -128,7 +140,7 @@ for (const W of [375, 390, 412])
     const same = (a, b) =>
       a === b || (b === "left" && a === "start") || (b === "right" && a === "end");
 
-    const ng = found.filter((f) => !same(f.al, want(f)));
+    const ng = found.filter((f) => !f.headOnly && !same(f.al, want(f)));
     expect(
       ng,
       "★列の揃えが決まりと違う（見出し=中央/数字・日付=右/言葉=左/1文字=中央）:\n  " +

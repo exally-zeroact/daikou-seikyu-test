@@ -80,13 +80,11 @@ function grabInk(where) {
       } else if (n.nodeType === 1) walk(n);
     }
   };
-  const scr = document.querySelector(".scr.on");
-  const modal = [...document.querySelectorAll(".modal, .modal-back, .sheet-modal")].find((m) => {
-    const r = m.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && getComputedStyle(m).display !== "none";
-  });
-  walk(scr || document.body);
-  if (modal) walk(modal);
+  // ★2026-08-21 場所を当てない★（指示役）
+  //   前は「今 出ている画面」だけを選んで数えていたので、
+  //   ★ログイン画面が丸ごと 数える範囲から外れていた★。
+  //   ⇒ ★body を全部 歩く★（見えている字だけ拾うので、隠れている画面は入らない）
+  walk(document.body);
   return out;
 }
 

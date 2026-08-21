@@ -2663,6 +2663,14 @@
         cursor: pointer;
         font-family: "Noto Sans JP", sans-serif;
       }
+      /* ★ログインの見出し（🚗 ダイコメ）は読む字＝薄い黒★ 2026-08-21
+         部品 exally-login.js は他アプリと共通（正本は1つ）なので、
+         ★部品は触らず 呼ぶ側のCSSで上書きする★（body を付けて 部品より強くする）。
+         押せる物・選ばれている物（ボタン・入力の枠）は今までどおり青のまま。 */
+      body .login-logo {
+        color: #333333;
+      }
+
       /* ===== ★列の揃えは ここだけで決める★（指示役 2026-08-18 A1） =====
          見出し＝中央 ／ 数字・日付＝右 ／ 言葉＝左 ／ 1文字＝中央 ／ ラベル＝左・値＝右
          ★これは「列（横に並ぶ物）」の決まり★。カード（縦に積む物・pay-summary等）は中央のまま。
@@ -9454,6 +9462,19 @@
          ・出どころは DEST_ALL（refreshDestList が作る 頻度順）＝★サジェストと同じ1本★
          ・押すと その行の行き先に入る（打ち直さなくてよい）
          ・まだ1件も明細が無い時は 何も出さない（★作り物の候補を見せない★） */
+      // 長い行き先は ★端と端を残して 途中を省く★（押す物なのに中身が読めないと選べない）
+      //   例: UNIQLO〜松本〜郷本町〜辻堂〜喜田村〜東予〜桜井 → UNIQLO〜…〜桜井
+      function destChipLabel(d) {
+        var s = String(d || "");
+        if (s.length <= 14) return s;
+        var p = s.split("〜");
+        if (p.length >= 3) {
+          var head = p[0];
+          var tail = p[p.length - 1];
+          if (head.length + tail.length <= 16) return head + "〜…〜" + tail;
+        }
+        return s.slice(0, 7) + "…" + s.slice(-5);
+      }
       function destOftenHtml(i) {
         var top = (DEST_ALL || []).slice(0, 3);
         if (!top.length) return "";
@@ -9467,8 +9488,10 @@
                 ",'" +
                 String(d).replace(/'/g, "&#39;").replace(/"/g, "&quot;") +
                 "')" +
-                '">' +
+                '" title="' +
                 esc(d) +
+                '">' +
+                esc(destChipLabel(d)) +
                 "</button>"
               );
             })
@@ -10940,9 +10963,13 @@
               accentDark: "#0a5fd0", // 事務所の --blue-d
               bg: "#f2f7ff", // 事務所の --bg
               line: "#dbe7f7", // 事務所の --line
-              title: "#14243d", // 事務所の --ink
-              ink: "#14243d",
-              muted: "#5a6b82", // 事務所の --muted
+              // ★2026-08-21 読ませる字は 薄い黒（#333/#555/#666）★
+              //   指示役が実配信のログイン画面から値で数えて見つけた：
+              //   説明3行が #5A6B82／アプリ名が #14243D／見出し「🚗 ダイコメ」が #007AFF だった。
+              //   ★客が一番先に見る画面が 直っていなかった★（私は画面を名指しで選んで数えていた）
+              title: "#333333",
+              ink: "#333333",
+              muted: "#555555",
               link: "#0a5fd0",
               danger: "#e0483d", // 事務所の --danger
               shadow: "rgba(20,36,61,.10)",

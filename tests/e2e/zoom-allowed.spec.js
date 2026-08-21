@@ -43,7 +43,8 @@ for (const W of [375, 390, 412])
     const over = [];
     const clip = [];
     let seen = 0;
-    for (const s of STOPS) {
+    // ★ログイン前は 入力欄の大きさだけ別に見る（入り直しで後ろを巻き込まない）★
+    for (const s of STOPS.filter((x) => x.name !== "ログイン前")) {
       await s.open(page);
       const r = await page.evaluate(
         (arg) => {

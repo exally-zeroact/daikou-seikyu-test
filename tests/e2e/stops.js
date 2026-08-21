@@ -101,6 +101,34 @@ export async function closeModal(page) {
 }
 
 export const STOPS = [
+  // ★客が一番先に見る画面＝ログインする前★（2026-08-21 指示役が実配信から見つけた穴）
+  //   ここを数えていなかったので「読ませる字は薄い黒」がログイン画面だけ直っていなかった。
+  {
+    name: "ログイン前",
+    open: async (p) => {
+      // ★画面を作る前に「入っていない状態」にする★（後から立てても もう読まれている）
+      await p.addInitScript(() => {
+        window.__FAKE_NO_SESSION__ = true;
+        try {
+          const db = JSON.parse(localStorage.getItem("__fake_supa_db__") || "{}");
+          db.session = null;
+          localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
+        } catch (e) {}
+      });
+      await p.reload({ waitUntil: "load" });
+      await p.waitForSelector(".login-card", { state: "attached", timeout: 30000 });
+      await p.waitForTimeout(1200);
+    },
+    close: async (p) => {
+      // 次の所のために 入り直す（作り物データを元に戻す）
+      await p.addInitScript(() => {
+        window.__FAKE_NO_SESSION__ = false;
+      });
+      await p.reload({ waitUntil: "load" });
+      await p.waitForSelector("#scr-input", { state: "visible", timeout: 30000 });
+      await p.waitForTimeout(400);
+    },
+  },
   { name: "入力", open: async (p) => nav(p, "input") },
   { name: "一覧", open: async (p) => nav(p, "list") },
   { name: "入金", open: async (p) => nav(p, "payment") },

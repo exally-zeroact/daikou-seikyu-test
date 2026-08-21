@@ -117,14 +117,22 @@ for (const W of [375, 390, 412])
     await boot(page, W);
 
     const found = [];
-    for (const s of STOPS) {
+    const perStop = [];
+    // ★ログイン前の画面には「列」が無い★（色は screen-ink が見る）。
+    //   ここで開くと 入り直しが要って 後ろの画面まで巻き込むので、この見張りでは開かない。
+    for (const s of STOPS.filter((x) => x.name !== "ログイン前")) {
       await s.open(page);
-      found.push(...(await page.evaluate(grabAlign, { where: s.name, sel: COL_SEL })));
+      const got = await page.evaluate(grabAlign, { where: s.name, sel: COL_SEL });
+      perStop.push(`${s.name}:${got.length}`);
+      found.push(...got);
       if (s.close) await s.close(page);
     }
 
     // ★何も見ていない緑を作らない★
-    expect(found.length, "★列の字を1つも見ていない（0本の緑は未検査）★").toBeGreaterThan(40);
+    expect(
+      found.length,
+      "★列の字を1つも見ていない（0本の緑は未検査）★ 開いた所ごとの数: " + perStop.join(" ")
+    ).toBeGreaterThan(40);
     expect(found.filter((f) => f.th).length, "★表の見出し(th)を1つも見ていない★").toBeGreaterThan(
       2
     );

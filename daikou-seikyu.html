@@ -1027,6 +1027,16 @@
       .li-day .d {
         font-family: "DM Mono", monospace;
       }
+      /* ★車の見出し★ 2026-08-25（司さん「上から車ごとに分けて」）
+         日の見出しより一段 弱く＝日 > 車 > 明細 の順に見える。字は薄い黒。 */
+      .li-car {
+        padding: 6px 2px 4px;
+        margin-top: 2px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #555555;
+        border-bottom: 1px solid #eaeff5;
+      }
       .li-day .s {
         font-family: "DM Mono", monospace;
         font-weight: 500;
@@ -9771,6 +9781,22 @@
             .join("");
         if (months.indexOf(keep) >= 0 || keep === "") sel.value = keep;
       }
+      // ★車ごとに分けて 早い順に並べる為の小道具★ 2026-08-25
+      //   dk_car_no … 事務所で決めた車の並び順（1466=1番・4987=2番…）
+      //   dk_ref    … 「端末:業務開始:何本目」＝★何本目★が その晩の早い順
+      //   ★手で入れた分は どちらも無い★ので 車の後ろ・入れた順になる。
+      function carNoOf(r) {
+        var n = Number(r && r.dk_car_no);
+        return isFinite(n) && n > 0 ? n : 9999; // 車なしは最後
+      }
+      function seqOf(r) {
+        var p = String((r && r.dk_ref) || "").split(":");
+        var n = Number(p[2]);
+        return isFinite(n) ? n : null;
+      }
+      function carLabelOf(r) {
+        return r && r.dk_car ? String(r.dk_car) : "";
+      }
       function renderList() {
         refreshCompanySelects();
         refreshMonthSelect();
@@ -9782,9 +9808,18 @@
           if (mo && !inMonth(r.日付, mo)) return false;
           return true;
         }).sort(function (a, b) {
+          // ★2026-08-25 司さん「一覧の並びも 上から車ごとに分けて 早い順で並べて」★
+          //   日は今までどおり ★新しい日が上★。その中を ★車ごと（事務所で決めた並び順）★、
+          //   車の中は ★早い順★（メーターの何本目→無ければ 入れた順）。
+          //   ★手で入れた分は 車が無いので 車の後ろにまとめる★（消さない）。
           var d = (b.日付 || "").localeCompare(a.日付 || "");
           if (d !== 0) return d;
-          return (b._created || "").localeCompare(a._created || ""); // 同じ日付は後から入れた明細を上へ(最新が上)
+          var c = carNoOf(a) - carNoOf(b);
+          if (c !== 0) return c;
+          var sa = seqOf(a),
+            sb = seqOf(b);
+          if (sa !== null && sb !== null && sa !== sb) return sa - sb;
+          return (a._created || "").localeCompare(b._created || "");
         });
         var box = document.getElementById("listBody");
         var sumEl = document.getElementById("listSum");
@@ -9845,13 +9880,26 @@
                 esc(yen(dsum)) +
                 "</span></div>";
             }
+            // ★車の見出しは 日ごとに出し直す★（2026-08-25 司さん）
+            var lastCar = null;
             return (
               head +
               list
                 .map(function (r) {
+                  // ★車が変わったら 見出しを1本 はさむ★（手で入れた分は「手で入れた分」）
+                  var carNow = carLabelOf(r);
+                  var carHead = "";
+                  if (carNow !== lastCar) {
+                    lastCar = carNow;
+                    carHead =
+                      '<div class="li-car">' +
+                      esc(carNow ? "車 " + carNow : "手で入れた分") +
+                      "</div>";
+                  }
                   // ★②会社名が主役・行き先は副★（前は逆だった＝探す物が一番 薄かった）
                   var co2 = r.会社名 + (r.備考 ? "・" + r.備考 : "");
                   return (
+                    carHead +
                     '<div class="list-swipe">' +
                     '<div class="swipe-action"><button class="swipe-del" onclick="deleteRow(\'' +
                     r.id +

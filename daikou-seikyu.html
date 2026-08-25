@@ -2839,7 +2839,7 @@
         text-align: center;
         padding: 3px 6px;
         letter-spacing: 1px;
-        font-family: 'Noto Sans JP', sans-serif;
+        font-family: &quot;Noto Sans JP&quot;, sans-serif;
       "
     >
       テスト用（本番ではありません）
@@ -2862,14 +2862,14 @@
     <script>
       // ★-test のアドレスの時だけ 帯を出す★（本番では1ドットも変わらない）
       (function () {
-        'use strict';
-        var h = (location.hostname || '').toLowerCase();
+        "use strict";
+        var h = (location.hostname || "").toLowerCase();
         if (!/-test\./.test(h) && !/-test$/.test(h)) return;
-        var el = document.getElementById('testBand');
+        var el = document.getElementById("testBand");
         if (!el) return;
-        el.style.display = 'block';
+        el.style.display = "block";
         // 帯の分だけ中身を下げる（頭が帯に隠れないように）
-        document.documentElement.style.paddingTop = el.offsetHeight + 'px';
+        document.documentElement.style.paddingTop = el.offsetHeight + "px";
       })();
     </script>
     <!-- ===== 読み込み中／通信エラー ===== -->
@@ -9782,10 +9782,9 @@
         if (months.indexOf(keep) >= 0 || keep === "") sel.value = keep;
       }
       // ★車ごとに分けて 早い順に並べる為の小道具★ 2026-08-25
-      //   dk_car_no … 事務所で決めた車の並び順（1466=1番・4987=2番…）
-      //   dk_ref    … 「端末:業務開始:何本目」＝★何本目★が その晩の早い順
-      //   ★手で入れた分は どちらも無い★ので 車の後ろ・入れた順になる。
-      // ★決まりは エンジン1本★（請求書の明細も 同じ物で並べる）
+      //   決まりは ★エンジン1本★（請求書の明細も 同じ物で並べる）。
+      //   ★2026-08-25：本番に合わせた★＝画面に決まりを書き直さない
+      //     （同じ決まりを2か所に書くと、片方だけ直した日に 並びが食い違う）
       //   ここで書き直すと ★一覧と請求書で並びが食い違う★ので 呼ぶだけにする。
       function carNoOf(r) {
         return MeisaiEngine.utils.carNoOf(r);
@@ -9814,12 +9813,7 @@
           //   ★手で入れた分は 車が無いので 車の後ろにまとめる★（消さない）。
           var d = (b.日付 || "").localeCompare(a.日付 || "");
           if (d !== 0) return d;
-          var c = carNoOf(a) - carNoOf(b);
-          if (c !== 0) return c;
-          var sa = seqOf(a),
-            sb = seqOf(b);
-          if (sa !== null && sb !== null && sa !== sb) return sa - sb;
-          return (a._created || "").localeCompare(b._created || "");
+          return MeisaiEngine.utils.compareInDay(a, b);
         });
         var box = document.getElementById("listBody");
         var sumEl = document.getElementById("listSum");

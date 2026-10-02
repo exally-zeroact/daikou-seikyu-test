@@ -8744,16 +8744,22 @@
 
       // ★発行の控えを1行 積む★（明細・自社情報・様式の写しつき）
       async function saveInvoiceCopy(month, co, rows, iss, no) {
-        var total = rows.reduce(function (t, r) {
-          return t + (Number(r.金額) || 0);
-        }, 0);
+        /* ★控えの 合計は 請求書と 同じ 関数で 出す★ 2026-10-02 夜（対立役）
+             前は 明細の 足し算（＝外税なら 税抜）と 内税の 式の 消費税を 残していた。
+             控えの total は 繰越の「前回の 請求額」に 使う ⇒ 外税の 会社は
+             ★消費税の 分 少なく 残り、お客さんが 請求書どおり 払うと 繰越が「払い過ぎ」に 出た★。
+             内税の 会社は 合計も 消費税も 前と 同じ 数。 */
+        var _t = MeisaiEngine.invoiceTotals(rows, {
+          taxMode: (MASTER[co] && MASTER[co].taxMode) || "",
+        });
+        var total = _t.goukei;
         var rec = {
           user_id: CURRENT_ACCOUNT,
           month: month,
           company: co,
           invoice_no: no,
           total: total,
-          tax: MeisaiEngine.utils.tax10(total),
+          tax: _t.zei,
           rows_json: rows.map(function (r) {
             var o = {};
             MeisaiEngine.FIELD_DEFS.forEach(function (f) {

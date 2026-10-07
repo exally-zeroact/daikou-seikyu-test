@@ -3890,6 +3890,9 @@
           var ivs = await fetchAllQ(function (a, b) {
             return SB.from("invoices")
               .select("month, company, invoice_no, total, issued_at", { count: "exact" })
+              .order("issued_at")
+              .order("company")
+              .order("month")
               .range(a, b);
           });
           if (ivs.error) cloudErr("請求書の控え読込", ivs.error);
@@ -3907,6 +3910,8 @@
           var no = await fetchAllQ(function (a, b) {
             return SB.from("invoice_no")
               .select("month, company, invoice_no", { count: "exact" })
+              .order("month")
+              .order("company")
               .range(a, b);
           });
           if (no.error) cloudErr("請求番号の読込", no.error);
@@ -4252,7 +4257,12 @@
           return;
         }
         // ★請求書・入金の 表は 読めなかった 物が 在れば 作らない★（対立役 D：Excel が 漏れていた）
-        var xlKeys = pick.invoice ? YOMENAI_ZEN : pick.pay ? ["payments"] : [];
+        //   集計・会社別集計も 入金額・残額・状態を 載せる（対立役：入金を 読めないと「全部 未入金」の 表が 出た）
+        var xlKeys = pick.invoice
+          ? YOMENAI_ZEN
+          : pick.pay || pick.summary || pick.byco
+            ? ["payments"]
+            : [];
         if (yomenaiTomeru(xlKeys, "Excel の 作成")) return;
         var allCo = document.getElementById("xlAllCo").checked;
         var allMo = document.getElementById("xlAllMo").checked;
@@ -11328,6 +11338,8 @@
       }
       // 表示中の月の集計を帳簿用 .xlsx に（金額は数値＝Excel側で集計/編集できる）
       function exportReport() {
+        // ★集計の Excel も 入金を 読めていない 時は 作らない★（入金 0・全部 未入金 の 表を 出さない）
+        if (yomenaiTomeru(["payments"], "集計の Excel の 作成")) return;
         if (typeof XLSX === "undefined") {
           toast("Excelライブラリの読み込み待ちです。少し待って再度押してください");
           return;

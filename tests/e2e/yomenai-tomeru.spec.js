@@ -176,3 +176,34 @@ test("★台帳 1001行（目当ての 月が 1001行目）⇒ 番号は 台帳�
   expect(r.no, "★1000行で 切れて 台帳の 番号を 見失った★").toBe("202605-099");
   expect(r.w, "★凍結した 番号を 書き直した★").toBe(0);
 });
+
+// ★★入金を 読めない 時の 門を 1つずつ 見る★★ 2026-10-08（対立役：全部 外すと 赤 だけでは 1つずつの 守りの 証しに ならない）
+//   ★わざと壊して 赤（2026-10-08 実測）★ 下の どの 関数の 門を 1つ 外しても その 1本が 赤
+for (const [na, yobu, tou] of [
+  ["savePay", (co) => savePay("2026-05", co, 12000), "入金の 保存"],
+  ["bulkMarkPaid", () => bulkMarkPaid(), "入金の 保存"],
+  ["undoPayState", (co) => undoPayState("2026-05", co, null), "入金の 保存"],
+  ["previewInvoiceFromPay", (co) => previewInvoiceFromPay(null, "2026-05", co), "請求書の 確認"],
+  ["exportReport（集計の Excel）", () => exportReport(), "集計の Excel の 作成"],
+]) {
+  test("★入金が 読めない ⇒ " + na + " は 止まる★", async ({ page }) => {
+    await open(page, ["payments"]);
+    const r = await page.evaluate(
+      async ([src, co]) => {
+        window.__FAKE_WRITES__ = {};
+        const f = eval("(" + src + ")");
+        await f(co);
+        return {
+          w: window.__FAKE_WRITES__.payments || 0,
+          toast: document.getElementById("toast").textContent,
+        };
+      },
+      [yobu.toString(), CO]
+    );
+    // eslint-disable-next-line no-console
+    console.log("★" + na + "★ " + JSON.stringify(r));
+    expect(r.w, "★読めない 入金を 書いた★").toBe(0);
+    expect(r.toast, "★止めた 訳を 出していない★").toContain(tou);
+    expect(r.toast).toContain("読めなかったので");
+  });
+}

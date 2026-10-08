@@ -8812,7 +8812,7 @@
       }
       // 画面に出す番号（読むだけ・書かない）。台帳に在ればそれ、無ければ今までどおりの計算。
       // ★★番号は 1か所で 決める★★ 2026-10-08（司さん「台帳ってなんど、ほんでなんで変わるんど」）
-      //   台帳（出した 番号の 控え）に 在れば それ。無ければ「その月の 会社の 並び」の 計算（全社 PDF と 同じ 1本）
+      //   台帳（出した 番号の 控え）に 在れば それ。無ければ「全部の 月の 会社の 並び」の 計算（全社 PDF と 同じ 1本）
       //   前は 1社の PDF・全社 PDF・Excel・画面の 見本で 計算が 2通り 在り、会社を 足すと 番号が ずれた
       function bangouKeisan(month, co) {
         return InvoicePDF.invoiceNoFor(MASTER, CURRENT_ACCOUNT, month, co, DB);
@@ -8823,7 +8823,14 @@
         return bangouKeisan(month, co);
       }
       // ★台帳に 無い 会社の 計算の 番号が、台帳で 別の 会社に 出した 番号と 同じ＝重なり★（止める）
+      // ★番号を 紙に 刷らない 時（showInvoiceNo が 切）は 止めない★ 2026-10-08 対立役
+      //   刷らない 番号の ために 月の 全社まとめを 止めていた（本番は 切＝飛勝工業 8月で 8月の 全社 PDF が 止まる 所だった）
       function bangouButsukari(month, cos) {
+        if (!currentIssuer().showInvoiceNo) return [];
+        return bangouKasanari(month, cos);
+      }
+      // 刷るか どうかに 関わらず 重なりを 数える（台帳へ 書く 前に 使う＝同じ 番号を 2社に 書かない）
+      function bangouKasanari(month, cos) {
         var deta = {};
         Object.keys(INVOICE_NO).forEach(function (k) {
           deta[INVOICE_NO[k]] = k.split("|").slice(1).join("|");
@@ -8862,8 +8869,11 @@
         if (YOMENAI.invoice_no) throw new Error("請求番号の台帳を読めていません");
         var k = invNoKey(month, co);
         if (INVOICE_NO[k]) return INVOICE_NO[k]; // ★一度 決めた番号は動かさない★
-        if (bangouButsukari(month, [co]).length) throw new Error("請求番号が 重なります");
         var no = bangouKeisan(month, co);
+        if (bangouKasanari(month, [co]).length) {
+          if (currentIssuer().showInvoiceNo) throw new Error("請求番号が 重なります");
+          return no; // ★刷らない 時は 出すが 台帳には 書かない★（別の 会社の 番号を 2重に 控えない）
+        }
         INVOICE_NO[k] = no;
         if (SB && CURRENT_ACCOUNT) {
           try {
@@ -9243,7 +9253,7 @@
           samp.rows,
           samp.month,
           iss,
-          InvoicePDF.invoiceNoFor(MASTER, CURRENT_ACCOUNT, samp.month, samp.co, DB)
+          invoiceNoFrozen(samp.month, samp.co) // ★見本も 台帳の 番号（番号の 道を 1本に）★
         );
         _tplThumbCache[key] = bytes;
         return bytes;
@@ -9497,7 +9507,8 @@
           return;
         }
         w.hidden = false;
-        if (yk.length) {
+        // ★自社情報が 空の 時は 登録番号の 案内を 足さない★（振込先が 空の 客に 違う 直し方を 教えていた・対立役）
+        if (yk.length || ng.indexOf("自社情報を入れてください") === 0) {
           w.innerHTML = "<b>" + esc(ng) + "</b>";
           return;
         }

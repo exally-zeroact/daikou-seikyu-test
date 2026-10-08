@@ -82,7 +82,7 @@ function seed() {
   );
 }
 
-async function open(page, ochiru, ooi, kaeru) {
+async function open(page, ochiru, ooi, kaeru, hiki) {
   await page.route(/cdn\.jsdelivr\.net/, (r) => r.abort());
   await page.addInitScript({ path: "tests/e2e/fake-supabase.js" });
   await page.addInitScript((t) => {
@@ -108,7 +108,7 @@ async function open(page, ochiru, ooi, kaeru) {
   // ★倉庫の 中身を 変える（その 試験 だけ）★
   if (kaeru)
     await page.addInitScript(
-      `(function(){var db=JSON.parse(localStorage.getItem("__fake_supa_db__"));(${kaeru.toString()})(db);localStorage.setItem("__fake_supa_db__",JSON.stringify(db));})();`
+      `(function(){var db=JSON.parse(localStorage.getItem("__fake_supa_db__"));(${kaeru.toString()})(db, ${JSON.stringify(hiki === undefined ? null : hiki)});localStorage.setItem("__fake_supa_db__",JSON.stringify(db));})();`
     );
   await page.goto("/daikou-seikyu.html", { waitUntil: "load" });
   await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
@@ -264,25 +264,51 @@ test("★自社情報の 無い 客 ⇒ 警告・請求書は 作らない・ZER
 
 // ★★請求番号が 台帳で 別の 会社に 出した 番号と 重なる ⇒ 出さず 知らせる★★ 2026-10-08（司さん「台帳ってなんど、ほんでなんで変わるんど」）
 //   ★わざと壊して 赤（2026-10-08 実測）★ bangouTomeru を 外す ⇒ ★赤★（同じ 番号で 出る）
-test("★番号が 別の 会社の 出した 番号と 重なる ⇒ 出さず 両方の 会社名を 出す★", async ({
+//   ★番号を 紙に 刷る 時（showInvoiceNo 入）だけ 止める★（刷らない 番号の ために 止めない・対立役 2026-10-08）
+function kasanaru(db, sn) {
+  // この 会社の 計算の 番号（2026-05-01）を 台帳で 別の 会社に 出した 事に する
+  db.tables.invoice_no = [
+    {
+      user_id: "u_yomi",
+      month: "2026-05",
+      company: "前に 消した 会社",
+      invoice_no: "2026-05-01",
+    },
+  ];
+  db.tables.issuer[0].config.showInvoiceNo = sn;
+  // 重ならない 月（6月）も 1件（Excel を 別の 月から 出す 試験に 使う）
+  db.tables.meisai.push(Object.assign({}, db.tables.meisai[0], { id: "m6", date: "2026-06-03" }));
+}
+test("★番号を 刷る・別の 会社の 出した 番号と 重なる ⇒ 出さず 両方の 会社名を 出す★", async ({
   page,
 }) => {
-  await open(page, [], false, (db) => {
-    // この 会社の 計算の 番号（2026-05-01）を 台帳で 別の 会社に 出した 事に する
-    db.tables.invoice_no = [
-      {
-        user_id: "u_yomi",
-        month: "2026-05",
-        company: "前に 消した 会社",
-        invoice_no: "2026-05-01",
-      },
-    ];
-  });
+  await open(page, [], false, kasanaru, true);
   await expect(page.locator("#btnInvPdf")).toBeDisabled();
   await expect(page.locator("#regnoWarn")).toContainText("重なります");
   await expect(page.locator("#regnoWarn")).toContainText("前に 消した 会社");
   const bytes = await page.evaluate(() => _buildInvoiceBytes());
   expect(bytes).toBeNull();
+});
+
+// ★★番号を 刷らない（本番は これ）⇒ 重なっても 請求書は 出す・台帳には 書かない★★ 2026-10-08 対立役
+//   ★わざと壊して 赤（2026-10-08 実測）★ bangouButsukari の showInvoiceNo を 見る 行を 外す ⇒ ★赤★（ボタンが 押せない）
+//   issueInvoiceNo の「刷らない 時は 書かない」を 外す ⇒ ★赤★（別の 会社の 番号を 台帳に 書く）
+test("★番号を 刷らない・重なる ⇒ 請求書は 出す・同じ 番号を 台帳に 書かない★", async ({ page }) => {
+  await open(page, [], false, kasanaru, false);
+  await expect(page.locator("#btnInvPdf")).toBeEnabled();
+  await expect(page.locator("#regnoWarn")).toBeHidden();
+  const r = await page.evaluate(async (co) => {
+    window.__FAKE_WRITES__ = {};
+    // ★紙の 門（_buildInvoiceBytes の 中と 同じ 判じ）が 止めない＝PDF の 部品は 試験では 読まない ので 門だけ 見る★
+    const tomeru = bangouTomeru("2026-05", [co]);
+    const no = await issueInvoiceNo("2026-05", co);
+    return { tomeru: tomeru, no: no, w: window.__FAKE_WRITES__.invoice_no || 0 };
+  }, CO);
+  // eslint-disable-next-line no-console
+  console.log("★刷らない 重なり★ " + JSON.stringify(r));
+  expect(r.tomeru, "★刷らない 番号の ために 請求書を 止めた★").toBe(false);
+  expect(r.no, "★番号が 計算の 1本で ない★").toBe("2026-05-01");
+  expect(r.w, "★別の 会社に 出した 番号を 台帳に 2重に 書いた★").toBe(0);
 });
 
 // ★★番号の 台帳が 1000行を 越えても 黙って 切れない（凍結した 番号を 上書きしない）★★ 2026-10-08（対立役 B）

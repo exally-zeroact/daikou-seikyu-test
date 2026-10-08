@@ -12,7 +12,7 @@ import { test, expect } from "@playwright/test";
 //     1. 出した瞬間に ★控えが1行 残る★（明細・自社情報・様式の写しつき）
 //     2. ★明細を後から直しても 出した控えの金額は変わらない★
 //     3. 番号は ★台帳に止まり、2回目に出しても同じ★
-//     4. ★凍結しても 今 見えている番号は1つも変わらない★（凍結した瞬間に動いたら事故）
+//     4. ★まだ 出していない 番号は 見せない・出した 後は 台帳の 番号★（2026-10-08 決め直し）
 //
 //   ★押す物の一覧（先に書く）★
 //     1. 下のナビ「請求」 2. 月 3. 会社 4.「📄 PDFで保存 / 送る」
@@ -51,8 +51,24 @@ function seed(amount) {
           },
         ],
         companies: [
-          { id: "c1", user_id: uid, name: "あ社", items: ["日付", "行き先", "金額"], config: {}, created_at: "2026-05-01T00:00:00.000Z", deleted_at: null },
-          { id: "c2", user_id: uid, name: co, items: ["日付", "行き先", "金額"], config: {}, created_at: "2026-05-01T00:00:00.000Z", deleted_at: null },
+          {
+            id: "c1",
+            user_id: uid,
+            name: "あ社",
+            items: ["日付", "行き先", "金額"],
+            config: {},
+            created_at: "2026-05-01T00:00:00.000Z",
+            deleted_at: null,
+          },
+          {
+            id: "c2",
+            user_id: uid,
+            name: co,
+            items: ["日付", "行き先", "金額"],
+            config: {},
+            created_at: "2026-05-01T00:00:00.000Z",
+            deleted_at: null,
+          },
         ],
         issuer: [
           {
@@ -100,24 +116,22 @@ async function noOnPaper(page, download) {
   return m[1];
 }
 
-const cloud = () =>
-  JSON.parse(localStorage.getItem("__fake_supa_db__")).tables;
+const cloud = () => JSON.parse(localStorage.getItem("__fake_supa_db__")).tables;
 
-test("★凍結しても 今 見えている番号は1つも変わらない★", async ({ page }) => {
+// ★★2026-10-08 決めが 変わった★★（司さん「重なったらいかんやろ」）
+//   前は「台帳に 無い 間は 会社の 並びの 計算の 番号を 見せる」を 守って いた。
+//   その 計算が 並びが 動くと 別の 会社の 番号と 重なった（本番 実測：西栄工業 7月 と アネラ 7月）
+//   ⇒ まだ 出していない 番号は 見せない（空）・出した 後は 台帳の 番号（重ならない 試験は bangou-kasanaranai）
+test("★まだ 出していない 番号は 見せない・出した 後は 台帳の 番号★", async ({ page }) => {
   await open(page, 12000);
-  const r = await page.evaluate(() => {
-    const out = {};
-    for (const co of Object.keys(window.MASTER)) {
-      out[co] = {
-        ima: window.MeisaiEngine.invoiceNoFor(window.MASTER, window.CURRENT_ACCOUNT, "2026-05", co),
-        kore: window.invoiceNoFrozen("2026-05", co),
-      };
-    }
-    return out;
-  });
-  for (const [co, v] of Object.entries(r)) {
-    expect(v.kore, `★${co} の番号が凍結で変わった★ ${v.ima} → ${v.kore}`).toBe(v.ima);
-  }
+  const r = await page.evaluate(async (co) => {
+    const mae = window.invoiceNoFrozen("2026-05", co);
+    const no = await window.issueInvoiceNo("2026-05", co);
+    return { mae: mae, no: no, ato: window.invoiceNoFrozen("2026-05", co) };
+  }, CO);
+  expect(r.mae, "★出していない 番号を 見せた★").toBe("");
+  expect(r.no).toMatch(/^2026-05-\d{2}$/);
+  expect(r.ato, "★出した 番号と 見える 番号が 違う★").toBe(r.no);
 });
 
 test("★出した瞬間に控えが残り、明細を直しても その控えは変わらない★", async ({ page }) => {
@@ -151,7 +165,14 @@ test("★出した瞬間に控えが残り、明細を直しても その控え�
     r.金額 = 9000;
     // 先頭に来る会社を足す＝計算し直すと 飛勝工業の番号は必ず後ろへずれる
     window.MASTER = Object.assign(
-      { "＿先頭に入る会社": { account_id: window.CURRENT_ACCOUNT, items: [], widths: {}, aligns: {} } },
+      {
+        "＿先頭に入る会社": {
+          account_id: window.CURRENT_ACCOUNT,
+          items: [],
+          widths: {},
+          aligns: {},
+        },
+      },
       window.MASTER
     );
     return window.MeisaiEngine.invoiceNoFor(
@@ -179,7 +200,10 @@ test("★出した瞬間に控えが残り、明細を直しても その控え�
   expect(ichi, "★1通目の控えが書き換わった＝過去の紙が残らない★").toBeTruthy();
   expect(ichi.rows_json[0].金額).toBe(12000);
   // 2通目は 9,000
-  expect(after2.invoices.some((x) => x.total === 9000), "2通目が残っていない").toBe(true);
+  expect(
+    after2.invoices.some((x) => x.total === 9000),
+    "2通目が残っていない"
+  ).toBe(true);
   // ★番号は2回目も同じ（台帳から出る）★
   expect(after2.invoice_no.length, "台帳が増えた＝番号が2つできた").toBe(1);
   for (const iv of after2.invoices) expect(iv.invoice_no).toBe(no1);

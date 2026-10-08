@@ -1308,14 +1308,14 @@
         rows,
         month,
         iss,
-        invoiceNo || invoiceNoFor(master, null, month, co)
+        invoiceNo || "" // ★番号は 呼ぶ 側が 台帳から 渡す★（無ければ 刷らない・ここで 作らない＝重なりの 元）
       );
       _lastMissing = [..._cov.missing];
     });
   }
 
   // ---- 公開: 月内の全社（1つのPDFに連結） ----
-  async function buildMonth(master, db, month, accountId, iss, issForCo) {
+  async function buildMonth(master, db, month, accountId, iss, issForCo, noFor) {
     var a = await loadAssets(iss && iss.pdfFont);
     var inMonth = function (iso) {
       return iso && iso.slice(0, 7) === month;
@@ -1361,10 +1361,8 @@
           rows,
           month,
           issCo,
-          // ★台帳の 番号（画面の invoiceNoFrozen）が 在れば それ★ 2026-10-08（1社の PDF と 同じ 番号）
-          typeof invoiceNoFrozen === "function"
-            ? invoiceNoFrozen(month, co)
-            : invoiceNoFor(master, accountId, month, co, db)
+          // ★番号は 呼ぶ 側が 台帳に 書いた 物を 渡す★ 2026-10-08（無ければ 刷らない・ここで 計算しない）
+          typeof noFor === "function" ? noFor(co) : ""
         );
       }
       _lastMissing = [..._cov.missing];

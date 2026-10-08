@@ -254,10 +254,10 @@ test("★自社情報の 無い 客 ⇒ 警告・請求書は 作らない・ZER
   // eslint-disable-next-line no-console
   console.log("★自社情報 無し★ " + JSON.stringify(r).slice(0, 300));
   expect(r.bank + r.issuer, "★ZEROact の 字が 入っている★").not.toMatch(
-    /ZEROact|4160657|T3500003003293/
+    /ZEROact|0000001|T3500003003293/
   );
   expect(r.saved, "★ZEROact の 字が 他の 客の 行に 保存された★").not.toMatch(
-    /4160657|T3500003003293/
+    /0000001|T3500003003293/
   );
   expect(r.bytes, "★自社情報が 無いのに 請求書を 作った★").toBeNull();
 });

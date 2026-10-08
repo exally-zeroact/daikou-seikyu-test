@@ -253,6 +253,10 @@ test("★会社名の 変更が 途中で 落ちる ⇒ 台帳は 元の 名前�
   const d = await daicho(page);
   expect(d, "★台帳だけ 新しい 名前に なった★").toContainEqual([M, "A社", "2026-05-01"]);
   expect(d.map((x) => x[1])).not.toContain("A商事");
+  const mei = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("__fake_supa_db__")).tables.meisai.map((r) => r.company)
+  );
+  expect(mei, "★明細の 名前が 戻って いない★").not.toContain("A商事");
   const no = await page.evaluate(() => issueInvoiceNo("2026-05", "A社"));
   expect(no, "★同じ 請求に 2つ目の 番号★").toBe("2026-05-01");
 });

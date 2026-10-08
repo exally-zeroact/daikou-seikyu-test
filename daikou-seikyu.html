@@ -8174,7 +8174,8 @@
           url = URL.createObjectURL(blob);
           var w = window.open(url, "_blank");
           if (!w) {
-            InvoicePDF.save(bytes, "請求書_" + month + "_" + co + ".pdf");
+            // ★確認（見るだけ）の 紙は 名前で 分かる 様に★（本物と 同じ 名前だと 番号「未発行」の 紙を 先方へ 送れてしまう・対立役）
+            InvoicePDF.save(bytes, "確認用_請求書_" + month + "_" + co + ".pdf");
             toast("PDFを保存しました（新しい窓が止められています）");
           }
         } catch (e) {
@@ -8817,8 +8818,8 @@
          ★2つの棚★
            invoices   … 発行の控え（出すたび1行 積む）
            invoice_no … 番号の台帳（月×会社に1つ）★一度決めた番号は動かさない★
-         ★凍結しても 今の番号は1つも変わらない★
-           台帳に無い間は 今までと同じ計算（invoiceNoFor）を返す＝見えている番号はそのまま。
+         ★番号は 重ならない★（2026-10-08 作り直し・下の issueInvoiceNo）
+           台帳に 無い 間は 番号を 出さない（紙を 作る 時に 台帳へ 書いて から 使う・見るだけは「未発行」）
       ============================================================================= */
       var INVOICE_NO = {}; // "YYYY-MM|会社名" -> "2026-05-03"（倉庫の 台帳に 書けた 番号 だけ）
       var INVOICES = []; // 発行の控え（繰越の材料）
@@ -9275,7 +9276,18 @@
       async function tplThumbBytes(design, vkey, co) {
         var samp = tplSampleRows(co);
         if (!samp) return null; // ★1件も無い時は「まだ紙が無い」と正直に出す（作り物を出さない）★
-        var key = design + "|" + vkey + "|" + samp.co + "|" + samp.month + "|" + samp.rows.length;
+        var key =
+          design +
+          "|" +
+          vkey +
+          "|" +
+          samp.co +
+          "|" +
+          samp.month +
+          "|" +
+          samp.rows.length +
+          "|" +
+          invoiceNoMiru(samp.month, samp.co); // ★番号を 出した 後に「未発行」の まま 残らない★
         if (_tplThumbCache[key]) return _tplThumbCache[key];
         var v =
           designVariants(design).filter(function (x) {
@@ -11253,9 +11265,23 @@
         var u2 = await SB.from("payments").update({ company: newName }).eq("company", oldName);
         if ((u1 && u1.error) || (u2 && u2.error)) {
           // ★明細・入金の 改名が 落ちたら 台帳の 名前も 戻す★（対立役：台帳だけ 新しい 名前に なると 古い 名前で 出した 時に 番号が 2つ目に なる）
-          await SB.from("invoice_no").update({ company: oldName }).eq("company", newName);
-          if (u1 && !u1.error)
-            await SB.from("meisai").update({ company: oldName }).eq("company", newName);
+          var m0 = await SB.from("invoice_no").update({ company: oldName }).eq("company", newName);
+          var m1 =
+            u1 && !u1.error
+              ? await SB.from("meisai").update({ company: oldName }).eq("company", newName)
+              : null;
+          if ((m0 && m0.error) || (m1 && m1.error)) {
+            // ★戻しも 落ちた＝台帳・明細の 名前が 割れて いる★（黙らない・対立役）
+            toast(
+              "会社名の 変更が 途中で 止まり、元に 戻せませんでした（請求番号の 台帳・明細の 一部が「" +
+                newName +
+                "」の まま）。請求書を 出す 前に 画面を 開き直し、もう一度「" +
+                newName +
+                "」へ 変えてください。"
+            );
+            renderMaster();
+            return;
+          }
           cloudErr("会社名変更", (u1 && u1.error) || (u2 && u2.error));
           renderMaster();
           return;

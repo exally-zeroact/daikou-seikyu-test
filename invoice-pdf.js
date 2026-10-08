@@ -1361,7 +1361,10 @@
           rows,
           month,
           issCo,
-          invoiceNoFor(master, accountId, month, co, db)
+          // ★台帳の 番号（画面の invoiceNoFrozen）が 在れば それ★ 2026-10-08（1社の PDF と 同じ 番号）
+          typeof invoiceNoFrozen === "function"
+            ? invoiceNoFrozen(month, co)
+            : invoiceNoFor(master, accountId, month, co, db)
         );
       }
       _lastMissing = [..._cov.missing];

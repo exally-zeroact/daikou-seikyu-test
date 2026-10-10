@@ -91,5 +91,5 @@ URL（このrepo＝テスト）: https://daikou-seikyu-test.vercel.app/daikou-se
 
 - `C:\Users\zeroa\OneDrive\チェリッシュ(代行.xlsx` … 明細型（日付/行き先/金額・内税）。月シート12枚。明細エリア A11:H32。この形を再現済み。
 - `C:\Users\zeroa\OneDrive\ENEOS(ZEROact.xlsx` … 外税型（項目/数量/単価/金額/消費税）。小計/消費税/合計は右下の枠（このレイアウトを代行にも採用＝今回の右下枠）。
-- 他: `せんば(代行/カラタチ(代行/笠原工業(代行` 等、取引先ごと1ファイル。
+- 他: `かみさ(代行/プスクイ(代行/標様工業(代行` 等、取引先ごと1ファイル。
 - 読み方: `node -e 'const X=require("./xlsx.full.min.js");const fs=require("fs");const wb=X.read(fs.readFileSync("<path>"),{type:"buffer"});...'`

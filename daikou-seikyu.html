@@ -5179,7 +5179,7 @@
                 heights[rif] = t && t.big ? 18 : 16;
               }
             }
-            // 役職集計（藤原型）＝合計の内訳。余白＋見出しで合計と分離・金額は右端右揃え。
+            // 役職集計（標様型）＝合計の内訳。余白＋見出しで合計と分離・金額は右端右揃え。
             if (showSummary) {
               var rsums = {};
               m.noteGroups.forEach(function (g) {
@@ -6259,7 +6259,7 @@
         saveMaster();
       }
       function seedDB() {
-        // 添付PDFの実データ（サンプル）。藤原=2026-01、シュシュ=2026-05。
+        // 添付PDFの実データ（サンプル）。標様=2026-01、サンプル=2026-05。
         var rows = [];
         function push(co, d, dest, amt, note) {
           rows.push({

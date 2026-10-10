@@ -67,7 +67,7 @@ function seed(amounts) {
             user_id: uid,
             config: {
               issuer:
-                "合同会社ZEROact\nZERO代行\n〒100-0000\n東京都架空区見本町1-2-3\nTEL000-0000-0000\n登録番号：T9000000000009",
+                "合同会社ZEROact\nZERO代行\n〒100-0000\n東京都架空区見本台1-2-3\nTEL000-0000-0000\n登録番号：T9000000000009",
               bank: "見本銀行",
             },
             updated_at: "2026-08-01T00:00:00.000Z",

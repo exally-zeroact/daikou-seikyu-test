@@ -1,0 +1,122 @@
+import { test, expect } from "@playwright/test";
+import { seed, nav } from "./stops.js";
+
+// ============================================================
+// 一覧で 金額を 直した 後、事務所（ダイコメ）の 売上へ 戻せなかった 時に 黙らない 2026-10-14
+//
+//   指示役：dk-fix-fare を 呼ぶ 所は 1か所・失敗を 読む 所は 0（成功の 時だけ toast・例外は console.warn・
+//   ログイン 切れは 黙って return）だった。全部を 受け口 1つ（_dkFixKotae）に 通し、揃っていない 時は
+//   一覧の 頭に 1行ずつ 帯（読み込み直しても 残る）。「もう一度 送る」は 何も 直っていない 時だけ。
+//
+//   ★functions/v1 は 全部 この 試験が 受ける★（偽の 倉庫は SB だけ 差し替え、生の fetch は 本物の
+//    テスト倉庫に 届く＝対立役）。受けていない 呼び出しは 赤。
+//
+//   ★わざと壊して 赤に なるのを 見た（2026-10-14 実測）★
+//     受け口を 入れる 前の daikou-seikyu.html に 戻す ⇒ 赤（帯が 出ない）
+// ============================================================
+
+test.setTimeout(120000);
+
+async function hiraku(page, kotae) {
+  const yobi = [];
+  await page.route("**/functions/v1/**", async (r) => {
+    const u = r.request().url();
+    yobi.push({ url: u, body: r.request().postData() });
+    if (!/\/functions\/v1\/dk-fix-fare$/.test(u))
+      return r.fulfill({ status: 599, body: "受けていない 呼び出し" });
+    const k = kotae.shift ? kotae.shift() : kotae;
+    if (k === "abort") return r.abort("failed");
+    return r.fulfill({
+      status: k.status,
+      contentType: "application/json",
+      body: typeof k.body === "string" ? k.body : JSON.stringify(k.body),
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 850 });
+  await page.addInitScript({ path: "tests/e2e/fake-supabase.js" });
+  await page.addInitScript(seed);
+  // m0 を ダイコメから 来た 行に・ログインに 鍵（access_token）を 付ける
+  await page.addInitScript(() => {
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__") || "{}");
+    if (db.session) db.session.access_token = "tok";
+    const m = db.tables && db.tables.meisai;
+    if (m && m[0]) m[0].extra = { dk_source: "daikome", dk_ref: "dev1:1700000000000:1" };
+    localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
+  });
+  await page.goto("/daikou-seikyu.html", { waitUntil: "load" });
+  await page.waitForSelector("#scr-input", { state: "visible", timeout: 30000 });
+  await page.waitForTimeout(1200);
+  return yobi;
+}
+
+async function kingakuNaosu(page, yen) {
+  await nav(page, "list");
+  await page.evaluate(() => openEdit("m0"));
+  await page.waitForTimeout(400);
+  await page.fill("#ed_金額", String(yen));
+  await page.locator("#modalBody button", { hasText: "保存" }).click();
+  await page.waitForTimeout(1200);
+}
+
+const obi = (page) => page.locator("#dkFixObi .dkfix-obi");
+
+test("uriage_reset_failed（500）＝帯に 何が 直り 何が 直らないか・揃っていない・送り直しは 出さない", async ({
+  page,
+}) => {
+  const yobi = await hiraku(page, [
+    {
+      status: 500,
+      body: { ok: false, reason: "uriage_reset_failed", updated: 1, shift_total: 9000 },
+    },
+  ]);
+  await kingakuNaosu(page, 1500);
+  expect(yobi.length).toBe(1);
+  await expect(obi(page)).toHaveCount(1);
+  await expect(obi(page)).toContainText("事務所が 前に 直した 売上を 外せませんでした");
+  await expect(obi(page)).toContainText("揃っていません");
+  await expect(obi(page).locator("[data-dkfix-okuru]")).toHaveCount(0);
+  // 読み込み直しても 残る
+  await page.reload({ waitUntil: "load" });
+  await page.waitForTimeout(1500);
+  await nav(page, "list");
+  await expect(obi(page)).toContainText("外せませんでした");
+});
+
+test("ログインが 切れた（401・訳 無し）＝送り直しを 出し、押して 直れば 帯が 消える", async ({
+  page,
+}) => {
+  const yobi = await hiraku(page, [
+    { status: 401, body: { code: 401, message: "Invalid JWT" } },
+    { status: 200, body: { ok: true, updated: 1, shift_total: 9000, uriage_hazushita: 0 } },
+  ]);
+  await kingakuNaosu(page, 1600);
+  await expect(obi(page)).toContainText("ログインが 切れていて");
+  const b = obi(page).locator("[data-dkfix-okuru]");
+  await expect(b).toHaveCount(1);
+  await b.click();
+  await page.waitForTimeout(800);
+  expect(yobi.length).toBe(2);
+  await expect(obi(page)).toHaveCount(0);
+});
+
+test("届かない（通信が 切れた）＝届いたか 分からない・送り直しは 出さない", async ({ page }) => {
+  await hiraku(page, ["abort"]);
+  await kingakuNaosu(page, 1700);
+  await expect(obi(page)).toContainText("届いたか 分かりません");
+  await expect(obi(page).locator("[data-dkfix-okuru]")).toHaveCount(0);
+});
+
+test("JSON で ない 500・知らない 訳 も 揃っていない と 出す", async ({ page }) => {
+  await hiraku(page, [{ status: 500, body: "<html>oops</html>" }]);
+  await kingakuNaosu(page, 1800);
+  await expect(obi(page)).toContainText("揃っていません");
+});
+
+test("直った（updated>0）＝帯は 出ない・手で 入れた 行（not_daikome）も 黙る", async ({ page }) => {
+  const yobi = await hiraku(page, [
+    { status: 200, body: { ok: true, updated: 1, shift_total: 9000, uriage_hazushita: 0 } },
+  ]);
+  await kingakuNaosu(page, 1900);
+  expect(yobi.length).toBe(1);
+  await expect(obi(page)).toHaveCount(0);
+});

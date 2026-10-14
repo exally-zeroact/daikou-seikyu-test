@@ -10628,10 +10628,17 @@
           _dkFixKotae(ato, { kind: "todoku", err: e && e.message });
         } finally {
           delete _dkFixOkuruChu[id];
+          _dkFixObi(); // 送り中の 印を 外したので ボタンを 押せる 形に 描き直す
           if (_dkFixMata[id]) {
             var tsugi = _dkFixMata[id];
             delete _dkFixMata[id];
-            _dkFixOkuru(tsugi); // 最後に 直した 金額で もう 1回（関数は 倉庫の 今の 金額を 読む）
+            // 消した 行は 送り直さない
+            if (
+              DB.some(function (x) {
+                return x.id === id;
+              })
+            )
+              _dkFixOkuru(tsugi); // 最後に 直した 金額で もう 1回（関数は 倉庫の 今の 金額を 読む）
           }
         }
       }
@@ -10755,6 +10762,18 @@
       function _dkFixKotae(ato, k) {
         var y = _dkFixYomu(k);
         var m = _dkFixKiroku();
+        // ★返事が 来る 前に 行を 消していたら 帯を 書かない★ 2026-10-14（対立役：消した 行の 帯が 出直した）
+        var aru = DB.some(function (x) {
+          return x.id === ato.id;
+        });
+        if (!aru) {
+          delete m[ato.id];
+          _dkFixKaku(m);
+          _dkFixObi();
+          if (window.console && console.warn)
+            console.warn("[dk-fix-fare] 消した 行の 返事", ato.id);
+          return y;
+        }
         if (!y.dame) {
           delete m[ato.id];
           // ★事務所が 給料の 画面で 直していた 売上を この 直しで 外した 時は 知らせる★ 2026-10-14（指示役）
@@ -10817,7 +10836,9 @@
               (x.okuru
                 ? '<button class="btn btn-sm dkfix-okuru" data-dkfix-okuru="' +
                   esc(id) +
-                  '">もう一度 事務所へ 送る</button>'
+                  '"' +
+                  (_dkFixOkuruChu[id] ? " disabled" : "") + // 送り中は 描き直しても 押せない
+                  ">もう一度 事務所へ 送る</button>"
                 : "") +
               '<button class="dkfix-x" data-dkfix-x="' +
               esc(id) +

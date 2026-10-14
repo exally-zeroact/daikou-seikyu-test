@@ -249,3 +249,26 @@ for (const [na, k, ji, okuru] of [
     expect(t, "中の 言葉が 客の 字に 出た").not.toMatch(/[a-z]+_[a-z]+/);
   });
 }
+
+// 本番前の 対立役（2回目）：送っている 最中に 行を 消すと、返事（409 deleted）で 消した 行の 帯が 出直した
+//   ★わざと壊して 赤に なるのを 見た★：直す 前の 版（5abbf9c）で 赤
+test("送っている 最中に 行を 消したら 返事が 来ても 帯を 出さない", async ({ page }) => {
+  const kotae = async (r) => {
+    await new Promise((ok) => setTimeout(ok, 1500));
+    return r.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: false, reason: "deleted" }),
+    });
+  };
+  await hiraku(page, kotae);
+  await nav(page, "list");
+  await page.evaluate(() => openEdit("m0"));
+  await page.waitForTimeout(300);
+  await page.fill("#ed_金額", "4100");
+  await page.locator("#modalBody button", { hasText: "保存" }).click();
+  await page.waitForTimeout(200);
+  await page.evaluate(() => deleteRow("m0"));
+  await page.waitForTimeout(2500);
+  await expect(obi(page)).toHaveCount(0);
+});

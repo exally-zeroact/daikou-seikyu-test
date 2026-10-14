@@ -10584,10 +10584,16 @@
         await _dkFixOkuru(ato);
       }
       var _dkFixOkuruChu = {}; // 今 送っている 行（同じ 行を 2本 同時に 送らない）
+      var _dkFixMata = {}; // 送っている 間に もう一度 直された 行（終わった 後に 1回 送り直す）
       var DK_FIX_MATSU_MS = 20000; // 返事を 待つ 長さ（来なければ 届いたか 分からない と 出す）
       async function _dkFixOkuru(ato) {
         var id = ato && ato.id;
-        if (!id || _dkFixOkuruChu[id]) return;
+        if (!id) return;
+        if (_dkFixOkuruChu[id]) {
+          // ★黙って 捨てない★ 2026-10-14（対立役：1回目が 前の 金額を 読んでいたら 事務所は 前の 金額の まま）
+          _dkFixMata[id] = ato;
+          return;
+        }
         _dkFixOkuruChu[id] = true;
         try {
           var ses = await SB.auth.getSession(); // 鍵は 毎回 取り直す（古い 鍵を 掴まない）
@@ -10622,6 +10628,11 @@
           _dkFixKotae(ato, { kind: "todoku", err: e && e.message });
         } finally {
           delete _dkFixOkuruChu[id];
+          if (_dkFixMata[id]) {
+            var tsugi = _dkFixMata[id];
+            delete _dkFixMata[id];
+            _dkFixOkuru(tsugi); // 最後に 直した 金額で もう 1回（関数は 倉庫の 今の 金額を 読む）
+          }
         }
       }
       // ★受け口★ 結果を 1つの 形に 読む。成功は res.ok かつ j.ok===true の 時だけ（知らない 形は 全部 揃っていない 側）
@@ -10672,12 +10683,7 @@
           return {
             dame: true,
             okuru: false,
-            ji:
-              "事務所から 分からない 返事が 来ました（" +
-              (r || "訳 無し") +
-              "）。" +
-              SOROWANAI +
-              KAKUNIN,
+            ji: "事務所から 分からない 返事が 来ました。" + SOROWANAI + KAKUNIN,
           };
         }
         // 失敗
@@ -10713,9 +10719,7 @@
             dame: true,
             okuru: true,
             ji:
-              "事務所の 売上を 直せませんでした（何も 直っていません・" +
-              r +
-              "）。" +
+              "事務所の 売上を 直せませんでした（何も 直っていません）。" +
               SOROWANAI +
               "「もう一度 事務所へ 送る」を 押してください。",
           };
@@ -10723,30 +10727,29 @@
           return {
             dame: true,
             okuru: false,
-            ji: "事務所が 受け付けませんでした（何も 直っていません・" + r + "）。" + SOROWANAI,
+            ji: "事務所が 受け付けませんでした（何も 直っていません）。" + SOROWANAI,
           };
         return {
           dame: true,
           okuru: false,
-          ji:
-            "事務所の 売上を 直せたか 分かりません（" +
-            (r || "返事 " + (k.status || "無し")) +
-            "）。" +
-            SOROWANAI +
-            KAKUNIN,
+          ji: "事務所の 売上を 直せたか 分かりません。" + SOROWANAI + KAKUNIN,
         };
       }
       var DK_FIX_KEY = "dkFixSorowanai"; // 揃っていない 行（読み込み直しても 知らせる）
+      // ★ログインした 人ごとに 分ける★ 2026-10-14（対立役：同じ 端末で 別の 業者が 入ると 前の 人の 帯が 見えた）
+      function _dkFixKagi() {
+        return DK_FIX_KEY + ":" + String(CURRENT_ACCOUNT || "");
+      }
       function _dkFixKiroku() {
         try {
-          return JSON.parse(localStorage.getItem(DK_FIX_KEY) || "{}") || {};
+          return JSON.parse(localStorage.getItem(_dkFixKagi()) || "{}") || {};
         } catch (e) {
           return {};
         }
       }
       function _dkFixKaku(m) {
         try {
-          localStorage.setItem(DK_FIX_KEY, JSON.stringify(m));
+          localStorage.setItem(_dkFixKagi(), JSON.stringify(m));
         } catch (e) {}
       }
       function _dkFixKotae(ato, k) {
@@ -10780,7 +10783,8 @@
         };
         _dkFixKaku(m);
         _dkFixObi();
-        if (window.console && console.warn) console.warn("[dk-fix-fare]", ato.id, y.ji);
+        if (window.console && console.warn)
+          console.warn("[dk-fix-fare]", ato.id, k && k.status, k && k.j && k.j.reason, y.ji);
         return y;
       }
       function _dkFixNa(ato) {
@@ -10835,7 +10839,10 @@
             var r2 = DB.filter(function (x) {
               return x.id === id2;
             })[0];
-            if (!r2) return;
+            if (!r2) {
+              toast("この 行は もう 一覧に 在りません。× で 閉じてください。");
+              return;
+            }
             b.disabled = true;
             _dkFixOkuru(r2);
           };
@@ -10853,6 +10860,12 @@
         DB = DB.filter(function (x) {
           return x.id !== id;
         });
+        // 消した 行の 帯は 消す（押しても 何も 起きない 帯を 残さない）2026-10-14
+        var mDk = _dkFixKiroku();
+        if (mDk[id]) {
+          delete mDk[id];
+          _dkFixKaku(mDk);
+        }
         closeModal();
         renderList();
         updatePayBadge();

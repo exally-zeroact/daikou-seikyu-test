@@ -24,6 +24,7 @@ async function hiraku(page, kotae) {
     yobi.push({ url: u, body: r.request().postData() });
     if (!/\/functions\/v1\/dk-fix-fare$/.test(u))
       return r.fulfill({ status: 599, body: "受けていない 呼び出し" });
+    if (typeof kotae === "function") return kotae(r);
     const k = kotae.shift ? kotae.shift() : kotae;
     if (k === "abort") return r.abort("failed");
     return r.fulfill({
@@ -149,3 +150,102 @@ test("外していない（uriage_hazushita=0）＝知らせない", async ({ pa
   await kingakuNaosu(page, 2200);
   await expect(obi(page)).toHaveCount(0);
 });
+
+// ── 本番前の 対立役（2026-10-14）の 指摘への 試験 ──
+//   ★わざと壊して 赤に なるのを 見た★：直す 前の 版（0673c2f）で 下の「2回目を 捨てない」「人ごと」「消した 行」が 赤
+test("送っている 間に もう一度 直したら 捨てずに 終わった 後に 送り直す", async ({ page }) => {
+  const yobi = [];
+  const kotae = async (r) => {
+    yobi.push(Date.now());
+    await new Promise((ok) => setTimeout(ok, 1500));
+    return r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, updated: 1, shift_total: 1, uriage_hazushita: 0 }),
+    });
+  };
+  await hiraku(page, kotae);
+  await nav(page, "list");
+  for (const yen of [3100, 3200]) {
+    await page.evaluate(() => openEdit("m0"));
+    await page.waitForTimeout(300);
+    await page.fill("#ed_金額", String(yen));
+    await page.locator("#modalBody button", { hasText: "保存" }).click();
+    await page.waitForTimeout(300);
+  }
+  await page.waitForTimeout(4000);
+  expect(yobi.length, "2回目が 捨てられた").toBe(2);
+  expect(yobi[1] - yobi[0], "2本 同時に 送った").toBeGreaterThanOrEqual(1400);
+});
+
+test("帯は ログインした 人ごと（別の 人には 見えない）・行を 消したら 帯も 消える", async ({
+  page,
+}) => {
+  await hiraku(page, [{ status: 500, body: { ok: false, reason: "uriage_reset_failed" } }]);
+  await kingakuNaosu(page, 3300);
+  await expect(obi(page)).toHaveCount(1);
+  const betsu = await page.evaluate(() => {
+    const moto = CURRENT_ACCOUNT;
+    CURRENT_ACCOUNT = "betsu-no-hito";
+    _dkFixObi();
+    const n = document.querySelectorAll("#dkFixObi .dkfix-obi").length;
+    CURRENT_ACCOUNT = moto;
+    _dkFixObi();
+    return n;
+  });
+  expect(betsu, "別の 人に 前の 人の 帯が 見えた").toBe(0);
+  await expect(obi(page)).toHaveCount(1);
+  await page.evaluate(() => deleteRow("m0"));
+  await page.waitForTimeout(800);
+  await expect(obi(page)).toHaveCount(0);
+});
+
+// 訳ごとの 字と 送り直しの 有無（dk-fix-fare の 段ごとの 本当の 動き）・中の 言葉は 字に 出さない
+for (const [na, k, ji, okuru] of [
+  [
+    "read_failed（業務の 合計）",
+    { status: 500, body: { ok: false, reason: "read_failed", at: "trips", updated: 1 } },
+    "業務の 合計が 直っていません",
+    0,
+  ],
+  [
+    "read_failed（業務）",
+    { status: 500, body: { ok: false, reason: "read_failed", at: "shift" } },
+    "何も 直っていません",
+    1,
+  ],
+  [
+    "trip_update_failed",
+    { status: 500, body: { ok: false, reason: "trip_update_failed" } },
+    "何も 直っていません",
+    1,
+  ],
+  [
+    "shift_update_failed",
+    { status: 500, body: { ok: false, reason: "shift_update_failed" } },
+    "業務の 合計が 直っていません",
+    0,
+  ],
+  [
+    "no_trip",
+    { status: 200, body: { ok: true, updated: 0, reason: "no_trip" } },
+    "記録が 見つからず",
+    0,
+  ],
+  [
+    "no_row（404）",
+    { status: 404, body: { ok: false, reason: "no_row" } },
+    "受け付けませんでした",
+    0,
+  ],
+]) {
+  test("訳ごと：" + na, async ({ page }) => {
+    await hiraku(page, [k]);
+    await kingakuNaosu(page, 3400);
+    await expect(obi(page)).toContainText(ji);
+    await expect(obi(page)).toContainText("揃っていません");
+    await expect(obi(page).locator("[data-dkfix-okuru]")).toHaveCount(okuru);
+    const t = await obi(page).textContent();
+    expect(t, "中の 言葉が 客の 字に 出た").not.toMatch(/[a-z]+_[a-z]+/);
+  });
+}

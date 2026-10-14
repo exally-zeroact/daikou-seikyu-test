@@ -395,9 +395,10 @@
     var amtIdx = items.indexOf("金額");
     var pDue = (iss && iss.paymentDue) || m.paymentDue; // お支払期限（自社情報優先・会社マスタfallback）
     var cw = colWidths(items, m.widths);
-    var grand = rows.reduce(function (s, r) {
-      return s + (Number(r.金額) || 0);
-    }, 0);
+    // ★御請求金額（税込）＝ 合計（税込）と 同じ 数★ 2026-10-14（対立役・本物の 紙で 確かめた）
+    //   前は 明細の 金額を 足した だけ＝外税の 会社は 税抜の 額に「税込」と 書いて 刷っていた
+    //   （下の 合計は 税込で 同じ 紙に 2つの 額）。合計は エンジン 1本（invoiceTotals の goukei）から
+    var grand = totalsOf(rows, iss).goukei;
     var logo = ctx.logoImg,
       hanko = ctx.hankoImg;
     var showLogo = logo && iss && iss.logoMode === "show";
@@ -878,9 +879,10 @@
     var amtIdx = items.indexOf("金額");
     var pDue = (iss && iss.paymentDue) || m.paymentDue; // お支払期限（自社情報優先・会社マスタfallback）
     var cw = colWidths(items, m.widths);
-    var grand = rows.reduce(function (s, r) {
-      return s + (Number(r.金額) || 0);
-    }, 0);
+    // ★御請求金額（税込）＝ 合計（税込）と 同じ 数★ 2026-10-14（対立役・本物の 紙で 確かめた）
+    //   前は 明細の 金額を 足した だけ＝外税の 会社は 税抜の 額に「税込」と 書いて 刷っていた
+    //   （下の 合計は 税込で 同じ 紙に 2つの 額）。合計は エンジン 1本（invoiceTotals の goukei）から
+    var grand = totalsOf(rows, iss).goukei;
     var style = (iss && iss.headerStyle) === "A" ? "A" : "B";
     var logo = ctx.logoImg,
       hanko = ctx.hankoImg;
@@ -1270,10 +1272,12 @@
      実測（請求書アプリ）… 3,087,087B → 88,558B（35分の1）・絵は 1画素も 違わない。 */
   var _slimFallback = false;
   /** ★丸ごとに 戻ってしまったか★（戻ったまま 気づかない を 作らない） */
-  function lastFallback() { return _slimFallback; }
+  function lastFallback() {
+    return _slimFallback;
+  }
   function _slimBuild(a, draw) {
     _slimFallback = false;
-    var PS = (typeof window !== 'undefined') ? window.PdfSlim : null;
+    var PS = typeof window !== "undefined" ? window.PdfSlim : null;
     if (!PS) {
       /* ★★丸ごとに 戻る道（SLIM-FALLBACK）★★
          受け皿が 読めていない時だけ 通る。★ここを 通ると PDFは 3MBに 戻る★。
@@ -1351,7 +1355,8 @@
       ctx.logoImg = await embedImg(doc, iss && iss.logo);
       ctx.hankoImg = await embedImg(doc, iss && iss.hanko);
       for (var si = 0; si < shigoto.length; si++) {
-        var co = shigoto[si].co, rows = shigoto[si].rows;
+        var co = shigoto[si].co,
+          rows = shigoto[si].rows;
         // ★会社毎テンプレ：issForCo(co)があればその会社のデザインで描く（font/ロゴ/判子はdoc共通）。
         var issCo = (typeof issForCo === "function" && issForCo(co)) || iss;
         await drawCompany(

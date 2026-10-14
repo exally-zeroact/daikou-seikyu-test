@@ -56,7 +56,7 @@ function seed() {
             {
               user_id: uid,
               config: {
-                issuer: "合同会社ZEROact\nZERO代行",
+                issuer: "合同会社ZEROact\nZERO代行\n登録番号：T1234567890123",
                 bank: "見本銀行",
                 showInvoiceNo: true,
               },
@@ -238,4 +238,49 @@ test("会社名を 付け替えた 会社＝「残っていない」と 嘘を �
   await gyou.click();
   await expect(page.locator("#modalBody")).toContainText("会社名を変えた月など");
   await expect(page.locator("#modalBody")).not.toContainText("残っていない");
+});
+
+// ── 本番前の 対立役（997e69b）の 指摘への 試験 ──
+test("全社まとめの PDF で 出し直した＝出した 明細が 残り 嘘の「違う」を 出さない", async ({
+  page,
+}) => {
+  const gyou = await hiraku(page, { ima: [12000, 4000], dashita: [12000, 3400], total: 15400 });
+  await expect(gyou).toContainText("出した時 ¥15,400");
+  await page.locator('.nav-item[data-scr="billing"]').click();
+  await page.selectOption("#invMonth", "2026-05");
+  await page.selectOption("#invCompany", "");
+  const kazu = await page.evaluate(async () => {
+    const r = await _buildInvoiceBytes();
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+    return {
+      ok: !!(r && r.bytes),
+      toast: document.getElementById("toast").textContent,
+      invoices: db.tables.invoices.length,
+      fname: r && r.fname,
+    };
+  });
+  expect(kazu.ok, JSON.stringify(kazu)).toBe(true);
+  expect(kazu.fname).toContain("全社");
+  expect(kazu.invoices, "全社まとめで 出した 明細が 残っていない").toBe(2);
+  await page.locator('.nav-item[data-scr="payment"]').click();
+  await expect(
+    page
+      .locator("#payBody .pay-row, #payBody > div")
+      .filter({ hasText: CO })
+      .first()
+      .locator(".pay-sagaku")
+  ).toHaveCount(0);
+});
+
+test("時刻の 書き方が 違っても 正しく 比べる（+09:00 の 10-02 20時＝税込で 残る 前）", async ({
+  page,
+}) => {
+  const gyou = await hiraku(page, {
+    tm: "外税",
+    ima: [12000, 3400],
+    dashita: [12000, 3400],
+    total: 15400, // 税抜で 残った 古い 写し（UTC では 11:00＝境の 13:47 より 前）
+    issued: "2026-10-02T20:00:00+09:00",
+  });
+  await expect(gyou.locator(".pay-sagaku")).toHaveCount(0);
 });

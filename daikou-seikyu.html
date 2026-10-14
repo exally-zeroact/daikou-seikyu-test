@@ -7344,6 +7344,24 @@
             toast("該当する明細がありません");
             return null;
           }
+          // ★全社まとめでも 出した 明細を 残す★ 2026-10-14（対立役：残さないと 出し直した 月に 古い 額と 比べて
+          //   「先方に 渡した 請求書と 額が 違います」と 嘘を 出した）。行の 選び方は 1社の 時と 同じ。
+          //   ★繰越を 使う 会社は 残さない★（控えは 繰越の 材料＝前と 同じ 動きの まま・繰越の 額は 1円も 変えない）
+          for (var _si = 0; _si < _tcos.length; _si++) {
+            var _sco = _tcos[_si];
+            if (MASTER[_sco] && MASTER[_sco].carryover) continue;
+            var _srows = DB.filter(function (r) {
+              return (
+                r.account_id === CURRENT_ACCOUNT && r.会社名 === _sco && inMonth(r.日付, month)
+              );
+            }).sort(function (a, b) {
+              return (
+                (a.日付 || "").localeCompare(b.日付 || "") || (a.id || "").localeCompare(b.id || "")
+              );
+            });
+            if (_srows.length)
+              await saveInvoiceCopy(month, _sco, _srows, issuerForEngine(_sco), _nos[_sco]);
+          }
           fname = "請求書_" + month + "_全社.pdf";
         }
         return { bytes: bytes, fname: fname };
@@ -8230,13 +8248,6 @@
             toast("該当する明細がありません");
             return;
           }
-          // 出した 請求書と 額が 違う 時は 知らせる（今の 明細で 作る 確認用の 紙＝先方に 渡した 紙と 違う）2026-10-14
-          var gK = sagakuOf(
-            month,
-            co,
-            MeisaiEngine.invoiceTotals(rows, { taxMode: (MASTER[co] || {}).taxMode }).goukei
-          );
-          if (gK && gK.kind === "chigau") toast("確認用の紙は今の明細で作ります。" + sagakuJi(gK));
           var bytes = await InvoicePDF.buildOne(
             MASTER,
             co,
@@ -8325,7 +8336,7 @@
         if (!d || !Array.isArray(d.rows_json)) return no ? { kind: "wakaranai", no: no } : null;
         var m = MASTER[co] || {};
         var dashita =
-          d.issued_at && String(d.issued_at) >= DASHITA_GOUKEI_KARA && isFinite(Number(d.total))
+          Date.parse(d.issued_at) >= Date.parse(DASHITA_GOUKEI_KARA) && isFinite(Number(d.total))
             ? Number(d.total)
             : MeisaiEngine.invoiceTotals(d.rows_json, { taxMode: m.taxMode }).goukei;
         if (dashita === imaGoukei) return { kind: "onaji" };

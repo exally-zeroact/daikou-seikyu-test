@@ -120,3 +120,32 @@ test("直った（updated>0）＝帯は 出ない・手で 入れた 行（not_d
   expect(yobi.length).toBe(1);
   await expect(obi(page)).toHaveCount(0);
 });
+
+// ── (2) 事務所が 直していた 売上を 外した 時は 知らせる 2026-10-14（指示役）──
+//   ★わざと壊して 赤に なるのを 見た★：知らせを 入れる 前の 版で 赤（帯が 出ない）
+for (const n of [1, 2]) {
+  test(
+    "事務所の 直しを 外した（uriage_hazushita=" + n + "）＝件数の まま 知らせる・送り直しは 無い",
+    async ({ page }) => {
+      await hiraku(page, [
+        { status: 200, body: { ok: true, updated: 1, shift_total: 9000, uriage_hazushita: n } },
+      ]);
+      await kingakuNaosu(page, 2100);
+      await expect(obi(page)).toHaveCount(1);
+      await expect(obi(page)).toHaveClass(/dkfix-shirase/);
+      await expect(obi(page)).toContainText("この 直しで 外しました（" + n + "件）");
+      await expect(obi(page)).not.toContainText("揃っていません");
+      await expect(obi(page).locator("[data-dkfix-okuru]")).toHaveCount(0);
+      await obi(page).locator("[data-dkfix-x]").click();
+      await expect(obi(page)).toHaveCount(0);
+    }
+  );
+}
+
+test("外していない（uriage_hazushita=0）＝知らせない", async ({ page }) => {
+  await hiraku(page, [
+    { status: 200, body: { ok: true, updated: 1, shift_total: 9000, uriage_hazushita: 0 } },
+  ]);
+  await kingakuNaosu(page, 2200);
+  await expect(obi(page)).toHaveCount(0);
+});

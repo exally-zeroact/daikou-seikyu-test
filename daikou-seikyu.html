@@ -970,6 +970,10 @@
         font-size: 13px;
         line-height: 1.5;
       }
+      .dkfix-obi.dkfix-shirase {
+        border-color: #cfe0ff;
+        background: #f2f7ff;
+      }
       .dkfix-na {
         font-weight: 700;
         margin-bottom: 2px;
@@ -10654,7 +10658,8 @@
         var j = k.j || null;
         var r = j && typeof j.reason === "string" ? j.reason : "";
         if (k.httpOk && j && j.ok === true) {
-          if (Number(j.updated) > 0) return { dame: false, seikou: true };
+          if (Number(j.updated) > 0)
+            return { dame: false, seikou: true, hazushita: Number(j.uriage_hazushita) || 0 };
           if (r === "not_daikome" || r === "no_amount") return { dame: false }; // 戻す 先が 無い 行（何も 触らない）
           if (r === "no_shift" || r === "no_trip" || r === "bad_ref")
             return {
@@ -10749,6 +10754,19 @@
         var m = _dkFixKiroku();
         if (!y.dame) {
           delete m[ato.id];
+          // ★事務所が 給料の 画面で 直していた 売上を この 直しで 外した 時は 知らせる★ 2026-10-14（指示役）
+          //   外す 事 その物は 司さんの 決め（後から 直した 方が 勝つ）の 通り＝変えない。知らせる だけ。
+          //   件数は dk-fix-fare の 返事（uriage_hazushita）の まま
+          if (y.hazushita > 0)
+            m[ato.id] = {
+              shirase: true,
+              ji:
+                "事務所が 給料の 画面で 直していた 売上を、この 直しで 外しました（" +
+                y.hazushita +
+                "件）。事務所の 売上は この 直しを 入れた 合計に なりました。",
+              na: _dkFixNa(ato),
+              at: new Date().toISOString(),
+            };
           _dkFixKaku(m);
           _dkFixObi();
           if (y.seikou) toast("事務所の売上も 直しました");
@@ -10757,19 +10775,22 @@
         m[ato.id] = {
           ji: y.ji,
           okuru: !!y.okuru,
-          na: [
-            ato.日付 || "",
-            ato.会社名 || "",
-            ato.金額 === "" || ato.金額 == null ? "" : "¥" + Number(ato.金額).toLocaleString(),
-          ]
-            .filter(Boolean)
-            .join(" "),
+          na: _dkFixNa(ato),
           at: new Date().toISOString(),
         };
         _dkFixKaku(m);
         _dkFixObi();
         if (window.console && console.warn) console.warn("[dk-fix-fare]", ato.id, y.ji);
         return y;
+      }
+      function _dkFixNa(ato) {
+        return [
+          ato.日付 || "",
+          ato.会社名 || "",
+          ato.金額 === "" || ato.金額 == null ? "" : "¥" + Number(ato.金額).toLocaleString(),
+        ]
+          .filter(Boolean)
+          .join(" ");
       }
       function _dkFixObi() {
         var box = document.getElementById("dkFixObi");
@@ -10780,7 +10801,9 @@
           .map(function (id) {
             var x = m[id] || {};
             return (
-              '<div class="dkfix-obi" data-dkfix="' +
+              '<div class="dkfix-obi' +
+              (x.shirase ? " dkfix-shirase" : "") +
+              '" data-dkfix="' +
               esc(id) +
               '"><div class="dkfix-na">' +
               esc(x.na || "") +

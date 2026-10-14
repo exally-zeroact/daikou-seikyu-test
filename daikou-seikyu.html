@@ -959,6 +959,14 @@
         white-space: nowrap;
       }
       /* 事務所の 売上へ 戻せなかった 行の 知らせ 2026-10-14 */
+      /* 出した 請求書と 今の 明細の 額の 差 2026-10-14 */
+      .pay-sagaku {
+        margin-top: 3px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #c0392b;
+        font-weight: 700;
+      }
       .dkfix-obi {
         position: relative;
         border: 1.5px solid #e8a39b;
@@ -3960,6 +3968,27 @@
           }
         } catch (e) {
           cloudErr("請求書の控え読込", e);
+        }
+        // ★出した 時の 明細（知らせ 専用）★ 2026-10-14（司さん「編集したらちゃんと反映」・指示役：渡した 紙と 額が
+        //   変わる 事を 黙らない）。繰越の 計算（INVOICES）とは 別に 持つ＝繰越の 額は 1円も 変えない。
+        //   比べるのは「出した 時の 明細の 行」を 今の 足し方（invoiceTotals・今の 内税／外税）に 通した 額と 今の 額
+        //   （前の 外税の 古い 写しは total が 税抜＝total を 比べると 嘘の「違う」が 出る・対立役）
+        DASHITA = {};
+        try {
+          var dsh = await fetchAllQ(function (a, b) {
+            return SB.from("invoices")
+              .select("month, company, invoice_no, issued_at, rows_json", { count: "exact" })
+              .order("issued_at")
+              .order("company")
+              .order("month")
+              .range(a, b);
+          });
+          if (!dsh.error)
+            (dsh.data || []).forEach(function (x) {
+              DASHITA[x.month + " " + x.company] = x; // 古い 順に 並べて 上書き＝最後に 出した 物
+            });
+        } catch (e) {
+          /* 知らせが 出せない だけ（請求・入金は 止めない） */
         }
         // ★番号の台帳を読む（凍結した番号はここから出す）★
         INVOICE_NO = {};
@@ -8271,6 +8300,41 @@
              ★古い 月から 順に 請求額 いっぱいまで 当てる★。余りは 一番 新しい 月に 乗せる。
              ★記録した 入金（PAYMENTS）は 1円も 書き換えない★＝見え方だけ。
              繰越を 使わない 会社は 今まで通り（記録した 月の 額）。 */
+      // ★出した 請求書と 今の 明細の 額の 差★ 2026-10-14（1か所・入金の 一覧と 窓が 呼ぶ）
+      //   返り値：null（出していない）／{ kind:"onaji" }／{ kind:"chigau", dashita, ima, sa, no, hi }
+      //          ／{ kind:"wakaranai", no }（番号だけ 決まって 出した 時の 明細が 残っていない）
+      function sagakuOf(month, co, imaGoukei) {
+        var d = DASHITA[month + " " + co];
+        var no = INVOICE_NO[invNoKey(month, co)] || (d && d.invoice_no) || "";
+        if (!d || !Array.isArray(d.rows_json)) return no ? { kind: "wakaranai", no: no } : null;
+        var m = MASTER[co] || {};
+        var dashita = MeisaiEngine.invoiceTotals(d.rows_json, { taxMode: m.taxMode }).goukei;
+        if (dashita === imaGoukei) return { kind: "onaji" };
+        return {
+          kind: "chigau",
+          dashita: dashita,
+          ima: imaGoukei,
+          sa: imaGoukei - dashita,
+          no: d.invoice_no || no,
+          hi: String(d.issued_at || "").slice(0, 10),
+        };
+      }
+      function sagakuJi(g) {
+        if (!g || g.kind !== "chigau") return "";
+        return (
+          "請求書（" +
+          (g.no ? "番号 " + g.no + "・" : "") +
+          (g.hi ? g.hi.replace(/-/g, "/") + " 発行" : "発行済み") +
+          "）を出した後に明細が変わりました。出した時 " +
+          yen(g.dashita) +
+          " → 今 " +
+          yen(g.ima) +
+          "（" +
+          (g.sa > 0 ? "+" : "−") +
+          yen(Math.abs(g.sa)) +
+          "）。先方に渡した請求書と額が違います。"
+        );
+      }
       function seikyuList(month) {
         var invs = MeisaiEngine.listInvoices(DB, CURRENT_ACCOUNT, null);
         var rowsBy = {};
@@ -8433,7 +8497,12 @@
               esc(x.iv.company) +
               '</div><div class="pay-sub">' +
               esc(sub) +
-              "</div></div>" +
+              "</div>" +
+              (function () {
+                var ji = sagakuJi(sagakuOf(x.iv.month, x.iv.company, x.iv.total));
+                return ji ? '<div class="pay-sagaku">' + esc(ji) + "</div>" : "";
+              })() +
+              "</div>" +
               '<div class="pay-right"><div class="pay-amt">' +
               yen(x.iv.total) +
               "</div>" +
@@ -8593,6 +8662,24 @@
           "件　請求額 " +
           yen(iv.total) +
           "</div>" +
+          (function () {
+            var g = sagakuOf(month, co, iv.total);
+            if (g && g.kind === "chigau")
+              return (
+                '<div class="pay-sagaku" style="margin:-6px 0 10px;">' + esc(sagakuJi(g)) + "</div>"
+              );
+            if (g && g.kind === "wakaranai")
+              return (
+                '<div class="pay-sub" style="margin:-6px 0 10px;color:#555555;">' +
+                esc(
+                  "番号 " +
+                    g.no +
+                    " で発行済み。出した時の明細が残っていないので、額が変わったかは比べられません。"
+                ) +
+                "</div>"
+              );
+            return "";
+          })() +
           /* ★★繰越を 使う 会社＝一覧は 古い 月から 当てた 額で 数える★★ 2026-10-02 夜（対立役）
                この窓の 入金額は ★その月の 記録★（直す 物）。前は 当てて 入金済の 月でも
                記録 0 と「全額」ボタンを 出し、★二重に 記録しやすい★ 形だった。
@@ -8857,7 +8944,8 @@
            台帳に 無い 間は 番号を 出さない（紙を 作る 時に 台帳へ 書いて から 使う・見るだけは「未発行」）
       ============================================================================= */
       var INVOICE_NO = {}; // "YYYY-MM|会社名" -> "2026-05-03"（倉庫の 台帳に 書けた 番号 だけ）
-      var INVOICES = []; // 発行の控え（繰越の材料）
+      var INVOICES = [];
+      var DASHITA = {}; // 出した 時の 明細（知らせ 専用・月 会社 → {invoice_no, issued_at, rows_json}） // 発行の控え（繰越の材料）
       function invNoKey(month, co) {
         return month + "|" + co;
       }
@@ -9041,6 +9129,14 @@
         try {
           var r = await SB.from("invoices").insert(rec);
           if (r && r.error) cloudErr("請求書の控え保存", r.error);
+          else
+            DASHITA[month + " " + co] = {
+              month: month,
+              company: co,
+              invoice_no: no,
+              issued_at: new Date().toISOString(),
+              rows_json: rec.rows_json,
+            }; // 知らせ 専用（出し直した 直後に 古い 額と 比べて 嘘の「違う」を 出さない）
         } catch (e) {
           cloudErr("請求書の控え保存", e);
         }

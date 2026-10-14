@@ -70,12 +70,12 @@ function seed() {
                   id: "i1",
                   user_id: uid,
                   month: "2026-05",
-                  company: co,
+                  company: arg.kyuuMei || co,
                   invoice_no: "2026-05-01",
                   total: arg.total,
                   tax: 0,
                   rows_json: rowsJson(arg.dashita),
-                  issued_at: "2026-06-01T00:00:00.000Z",
+                  issued_at: arg.issued || "2026-06-01T00:00:00.000Z",
                   deleted_at: null,
                 },
               ]
@@ -161,4 +161,81 @@ test("同じ 画面で 出し直した 直後は 新しい 額と 比べる（�
       .first()
       .locator(".pay-sagaku")
   ).toHaveCount(0);
+});
+
+// ── 本番前の 対立役（09c3103）の 指摘への 試験 ──
+//   ★わざと壊して 赤に なるのを 見た★：直す 前の 版（09c3103）で 下の 4本とも 赤
+test("内税で 出してから 外税へ 切り替えた（10-02 夜 より 後に 出した 物）＝知らせる", async ({
+  page,
+}) => {
+  const gyou = await hiraku(page, {
+    tm: "外税",
+    ima: [12000, 3400],
+    dashita: [12000, 3400],
+    total: 15400, // 出した 時は 内税＝合計 15,400
+    issued: "2026-10-05T03:00:00.000Z",
+  });
+  await expect(gyou).toContainText("出した時 ¥15,400 → 今 ¥16,940（+¥1,540）");
+});
+
+test("額が 減った＝マイナスの 符号・日付は 日本時間（朝 9時 前に 出した 物が 前の 日に ならない）", async ({
+  page,
+}) => {
+  const gyou = await hiraku(page, {
+    ima: [12000, 2800],
+    dashita: [12000, 3400],
+    total: 15400,
+    issued: "2026-06-13T23:30:00.000Z", // 日本時間 6/14 8:30
+  });
+  await expect(gyou).toContainText("6/14 に出した後");
+  await expect(gyou).toContainText("出した時 ¥15,400 → 今 ¥14,800（−¥600）");
+});
+
+test("出した 時の 明細を 読めなかった＝読めなかったと 出す（「残っていない」と 言わない）", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const t = setInterval(() => {
+      const SBx = window.__EXALLY_FAKE_SB__;
+      if (!SBx || SBx.__waza) return;
+      SBx.__waza = true;
+      const moto = SBx.from.bind(SBx);
+      SBx.from = function (tbl) {
+        const q = moto(tbl);
+        if (tbl !== "invoices") return q;
+        const sel = q.select.bind(q);
+        q.select = function (cols, o) {
+          if (String(cols).indexOf("rows_json") >= 0) {
+            const bad = {
+              order: () => bad,
+              range: () => Promise.resolve({ data: null, error: { message: "boom" } }),
+            };
+            return bad;
+          }
+          return sel(cols, o);
+        };
+        return q;
+      };
+      clearInterval(t);
+    }, 0);
+  });
+  const gyou = await hiraku(page, { ima: [12000, 4000], dashita: [12000, 3400], total: 15400 });
+  await gyou.click();
+  await expect(page.locator("#modalBody")).toContainText("明細を読めませんでした");
+  await expect(page.locator("#modalBody")).not.toContainText("残っていない");
+});
+
+test("会社名を 付け替えた 会社＝「残っていない」と 嘘を 言わず 見つからない 訳を 出す", async ({
+  page,
+}) => {
+  const gyou = await hiraku(page, {
+    ima: [12000, 4000],
+    dashita: [12000, 3400],
+    total: 15400,
+    bangou: true,
+    kyuuMei: "差の試し株式会社（旧名）",
+  });
+  await gyou.click();
+  await expect(page.locator("#modalBody")).toContainText("会社名を変えた月など");
+  await expect(page.locator("#modalBody")).not.toContainText("残っていない");
 });

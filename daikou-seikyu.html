@@ -958,7 +958,6 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
-      /* 事務所の 売上へ 戻せなかった 行の 知らせ 2026-10-14 */
       /* 出した 請求書と 今の 明細の 額の 差 2026-10-14 */
       .pay-sagaku {
         margin-top: 3px;
@@ -967,6 +966,7 @@
         color: #c0392b;
         font-weight: 700;
       }
+      /* 事務所の 売上へ 戻せなかった 行の 知らせ 2026-10-14 */
       .dkfix-obi {
         position: relative;
         border: 1.5px solid #e8a39b;
@@ -3977,18 +3977,22 @@
         try {
           var dsh = await fetchAllQ(function (a, b) {
             return SB.from("invoices")
-              .select("month, company, invoice_no, issued_at, rows_json", { count: "exact" })
+              .select("month, company, invoice_no, total, issued_at, rows_json", { count: "exact" })
               .order("issued_at")
               .order("company")
               .order("month")
               .range(a, b);
           });
-          if (!dsh.error)
+          if (dsh.error) DASHITA_YOMENAI = true;
+          else {
+            DASHITA_YOMENAI = false;
             (dsh.data || []).forEach(function (x) {
               DASHITA[x.month + " " + x.company] = x; // 古い 順に 並べて 上書き＝最後に 出した 物
             });
+          }
         } catch (e) {
-          /* 知らせが 出せない だけ（請求・入金は 止めない） */
+          // 読めない 時は 黙らない（「明細が 残っていない」と 嘘を 出さない・対立役）。請求・入金は 止めない
+          DASHITA_YOMENAI = true;
         }
         // ★番号の台帳を読む（凍結した番号はここから出す）★
         INVOICE_NO = {};
@@ -8226,6 +8230,13 @@
             toast("該当する明細がありません");
             return;
           }
+          // 出した 請求書と 額が 違う 時は 知らせる（今の 明細で 作る 確認用の 紙＝先方に 渡した 紙と 違う）2026-10-14
+          var gK = sagakuOf(
+            month,
+            co,
+            MeisaiEngine.invoiceTotals(rows, { taxMode: (MASTER[co] || {}).taxMode }).goukei
+          );
+          if (gK && gK.kind === "chigau") toast("確認用の紙は今の明細で作ります。" + sagakuJi(gK));
           var bytes = await InvoicePDF.buildOne(
             MASTER,
             co,
@@ -8303,12 +8314,20 @@
       // ★出した 請求書と 今の 明細の 額の 差★ 2026-10-14（1か所・入金の 一覧と 窓が 呼ぶ）
       //   返り値：null（出していない）／{ kind:"onaji" }／{ kind:"chigau", dashita, ima, sa, no, hi }
       //          ／{ kind:"wakaranai", no }（番号だけ 決まって 出した 時の 明細が 残っていない）
+      // 出した 時の 合計が 税込（goukei）で 残る 様に なった 本番の 時刻（daikou-seikyu 84a9c02）。
+      //   これより 後に 出した 物は 残った 合計を そのまま 比べる（内税↔外税を 切り替えた 会社も 拾う・対立役）。
+      //   これより 前は 外税の 合計が 税抜で 残っている ので、明細の 行を 今の 足し方に 通す
+      var DASHITA_GOUKEI_KARA = "2026-10-02T13:47:13Z";
       function sagakuOf(month, co, imaGoukei) {
+        if (DASHITA_YOMENAI) return { kind: "yomenai" };
         var d = DASHITA[month + " " + co];
         var no = INVOICE_NO[invNoKey(month, co)] || (d && d.invoice_no) || "";
         if (!d || !Array.isArray(d.rows_json)) return no ? { kind: "wakaranai", no: no } : null;
         var m = MASTER[co] || {};
-        var dashita = MeisaiEngine.invoiceTotals(d.rows_json, { taxMode: m.taxMode }).goukei;
+        var dashita =
+          d.issued_at && String(d.issued_at) >= DASHITA_GOUKEI_KARA && isFinite(Number(d.total))
+            ? Number(d.total)
+            : MeisaiEngine.invoiceTotals(d.rows_json, { taxMode: m.taxMode }).goukei;
         if (dashita === imaGoukei) return { kind: "onaji" };
         return {
           kind: "chigau",
@@ -8316,16 +8335,24 @@
           ima: imaGoukei,
           sa: imaGoukei - dashita,
           no: d.invoice_no || no,
-          hi: String(d.issued_at || "").slice(0, 10),
+          hi: d.issued_at ? jstMD(d.issued_at) : "",
         };
+      }
+      // 日本時間の M/D（倉庫の 時刻は UTC＝そのまま 切ると 朝 9時 前が 前の 日に なる・対立役）
+      function jstMD(iso) {
+        var t = Date.parse(iso);
+        if (!isFinite(t)) return "";
+        var d = new Date(t + 9 * 3600 * 1000);
+        return d.getUTCMonth() + 1 + "/" + d.getUTCDate();
       }
       function sagakuJi(g) {
         if (!g || g.kind !== "chigau") return "";
         return (
-          "請求書（" +
-          (g.no ? "番号 " + g.no + "・" : "") +
-          (g.hi ? g.hi.replace(/-/g, "/") + " 発行" : "発行済み") +
-          "）を出した後に明細が変わりました。出した時 " +
+          "請求書" +
+          (g.no ? "（No. " + g.no + "）" : "") +
+          "を" +
+          (g.hi ? g.hi + " に" : "") +
+          "出した後に明細が変わりました。出した時 " +
           yen(g.dashita) +
           " → 今 " +
           yen(g.ima) +
@@ -8672,9 +8699,17 @@
               return (
                 '<div class="pay-sub" style="margin:-6px 0 10px;color:#555555;">' +
                 esc(
-                  "番号 " +
+                  "No. " +
                     g.no +
-                    " で発行済み。出した時の明細が残っていないので、額が変わったかは比べられません。"
+                    " で発行済み。この画面では出した時の明細が見つからないので（全社まとめの PDF・印刷で出した月、会社名を変えた月など）、額が変わったかは比べられません。"
+                ) +
+                "</div>"
+              );
+            if (g && g.kind === "yomenai")
+              return (
+                '<div class="pay-sagaku" style="margin:-6px 0 10px;">' +
+                esc(
+                  "出した請求書の明細を読めませんでした（通信）。額が変わったかは、画面を開き直して確かめてください。"
                 ) +
                 "</div>"
               );
@@ -8944,8 +8979,9 @@
            台帳に 無い 間は 番号を 出さない（紙を 作る 時に 台帳へ 書いて から 使う・見るだけは「未発行」）
       ============================================================================= */
       var INVOICE_NO = {}; // "YYYY-MM|会社名" -> "2026-05-03"（倉庫の 台帳に 書けた 番号 だけ）
-      var INVOICES = [];
-      var DASHITA = {}; // 出した 時の 明細（知らせ 専用・月 会社 → {invoice_no, issued_at, rows_json}） // 発行の控え（繰越の材料）
+      var INVOICES = []; // 発行の控え（繰越の材料）
+      var DASHITA = {}; // 出した 時の 明細（知らせ 専用・月 会社 → {invoice_no, total, issued_at, rows_json}）
+      var DASHITA_YOMENAI = false; // 出した 時の 明細を 読めなかった
       function invNoKey(month, co) {
         return month + "|" + co;
       }
@@ -9134,6 +9170,7 @@
               month: month,
               company: co,
               invoice_no: no,
+              total: rec.total,
               issued_at: new Date().toISOString(),
               rows_json: rec.rows_json,
             }; // 知らせ 専用（出し直した 直後に 古い 額と 比べて 嘘の「違う」を 出さない）

@@ -8809,12 +8809,13 @@
       function modoseKagi() {
         return "payModose:" + String(CURRENT_ACCOUNT || "");
       }
+      // 返り値：覚えた 一覧（無ければ null）。端末の 覚えが 読めない 時は undefined（＝この 画面の MODOSE を 使う）
       function modoseYomu() {
         try {
           var o = JSON.parse(localStorage.getItem(modoseKagi()) || "null");
           return o && Array.isArray(o.dame) && o.dame.length ? o : null;
         } catch (e) {
-          return null;
+          return undefined;
         }
       }
       function modoseKaku() {
@@ -8835,7 +8836,9 @@
       //   覚えるのは 額・入金日・メモの 有無・起きた 日時 だけ（メモの 本文・倉庫の id は 覚えない・対立役）。
       //   読めない かどうかは 覚えない＝描く 時に 引き直す（覚えると 開き直して 読めた 後も「読めていません」と 出続けた）
       function modoseNakattaMado(zen, dame) {
-        var mae = MODOSE || modoseYomu() || { dame: [] };
+        // ★足す 前に 端末の 覚えを 読み直す★（別の タブが 足した 行・閉じた 帯を 古い 一覧で 上書きしない・対立役）
+        var y = modoseYomu();
+        var mae = (y !== undefined ? y : MODOSE) || { dame: [] };
         var aru = {};
         mae.dame.forEach(function (x) {
           aru[x.month + " " + x.co] = 1;
@@ -8860,7 +8863,8 @@
       // 前の 状態に 直った 行は 消す（直し終えても「直して」と 言い続けない・古い 額で 上書きさせない）
       function modoseNaotta(x) {
         var r = PAYMENTS[payKeyFor(x.month, x.co)];
-        if (!x.snap) return !r;
+        // 前が 記録なし＝記録が 消えたか 額が 0（未入金(0) で 保存した 形）なら 直った
+        if (!x.snap) return !r || Number(r.paid) === 0;
         return (
           !!r &&
           String(r.paid) === String(x.snap.paid) &&
@@ -8870,7 +8874,8 @@
       function renderModose() {
         var body = document.getElementById("payBody");
         if (!body) return;
-        if (!MODOSE) MODOSE = modoseYomu();
+        var y = modoseYomu(); // 描く 度に 端末の 覚えを 正に する（別の タブの 足し・閉じるに 合わせる）
+        if (y !== undefined) MODOSE = y;
         if (MODOSE && !YOMENAI.payments) {
           var nokori = MODOSE.dame.filter(function (x) {
             return !modoseNaotta(x);
@@ -8920,7 +8925,7 @@
               ? "前は 記録なし（未入金に 戻す）"
               : "前は " +
                 gaku(x.snap.paid) +
-                (x.snap.paidDate ? "・入金日 " + x.snap.paidDate : "") +
+                (x.snap.paidDate ? "・入金日 " + x.snap.paidDate : "・入金日 なし") +
                 (x.snap.memo ? "・メモ あり" : "");
             return (
               "<li>" +

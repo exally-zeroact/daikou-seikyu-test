@@ -537,7 +537,7 @@ test("額が 空の 字なら「額が 読めない」・メモの 本文は 覚
     ]);
   });
   const obi = page.locator("#payModose");
-  await expect(obi).toContainText("2026年4月 空の会社：前は 額が 読めない・メモ あり");
+  await expect(obi).toContainText("2026年4月 空の会社：前は 額が 読めない・入金日 なし・メモ あり");
   const oboe = await page.evaluate(() =>
     Object.keys(localStorage)
       .filter((k) => k.indexOf("payModose:") === 0)
@@ -556,4 +556,66 @@ test("額が 空の 字なら「額が 読めない」・メモの 本文は 覚
   });
   await expect(obi).not.toContainText("明細ある株式会社");
   await expect(obi).toContainText("空の会社");
+});
+
+// ── 本番前の 対立役（83418d9）の 指摘 ──
+test("帯は ログインした 人の 物だけ（人を 入れ替えると 出ない）", async ({ page }) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    modoseNakattaMado(1, [{ month: "2026-05", co: "明細ある株式会社", snap: { paid: 1 } }]);
+  });
+  await expect(page.locator("#payModose")).toContainText("明細ある株式会社");
+  await page.evaluate(() => {
+    MODOSE = null;
+    CURRENT_ACCOUNT = "u_betsu";
+    renderPayments();
+  });
+  await expect(page.locator("#payModose")).toHaveCount(0);
+});
+
+test("前が 記録なしの 行は 客が「未入金(0)」で 保存すると 消える・前の 入金日が 空なら「入金日 なし」", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await page.evaluate(async () => {
+    await markPaidFull("2026-05", "明細ある株式会社", 15400);
+    modoseNakattaMado(2, [
+      { month: "2026-05", co: "明細ある株式会社", snap: null },
+      { month: "2026-04", co: "日の無い会社", snap: { paid: 3000, paidDate: "" } },
+    ]);
+  });
+  const obi = page.locator("#payModose");
+  await expect(obi).toContainText("2026年4月 日の無い会社：前は ¥3,000・入金日 なし");
+  await expect(obi).toContainText("2026年5月 明細ある株式会社");
+  await page.locator("#payBody .pay-item").filter({ hasText: "明細ある株式会社" }).first().click();
+  await page.locator("#modalBody").getByRole("button", { name: "未入金(0)" }).click();
+  await page.locator("#modalBody").getByRole("button", { name: /保存/ }).first().click();
+  await expect(page.locator("#toast")).toContainText("入金を記録しました");
+  await expect(obi).not.toContainText("明細ある株式会社");
+  await expect(obi).toContainText("日の無い会社");
+});
+
+test("別の タブで 足された 行・閉じた 帯に 合わせる（古い 一覧で 上書きしない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    modoseNakattaMado(1, [{ month: "2026-05", co: "一つ目の会社", snap: { paid: 1 } }]);
+    // 別の タブが 足した（端末の 覚えだけ 変わる）
+    const k = "payModose:" + CURRENT_ACCOUNT;
+    const o = JSON.parse(localStorage.getItem(k));
+    o.dame.push({ month: "2026-05", co: "二つ目の会社", snap: { paid: 2 } });
+    localStorage.setItem(k, JSON.stringify(o));
+    modoseNakattaMado(1, [{ month: "2026-05", co: "三つ目の会社", snap: { paid: 3 } }]);
+  });
+  const obi = page.locator("#payModose");
+  await expect(obi).toContainText("一つ目の会社");
+  await expect(obi).toContainText("二つ目の会社");
+  await expect(obi).toContainText("三つ目の会社");
+  // 別の タブで 閉じた＝この タブでも 描き直すと 消える
+  await page.evaluate(() => {
+    localStorage.removeItem("payModose:" + CURRENT_ACCOUNT);
+    renderPayments();
+  });
+  await expect(page.locator("#payModose")).toHaveCount(0);
 });

@@ -12108,6 +12108,30 @@
         refreshCompanySelects();
         toast("削除しました");
       }
+      // 付け替えで 動かした 行だけを 元の 名前へ 戻す。動かした 行が 分からない 時は 戻さず「戻せない」を 返す
+      //   （分からない まま 新しい 名前で 一括に 戻すと 他の 会社の 行まで 動かす）
+      async function modoshiDake(tbl, u, kagi, oldName, newName) {
+        if (!u || !Array.isArray(u.data)) return { error: { message: "動かした 行が 分からない" } };
+        var keys = u.data
+          .map(function (r) {
+            return r && r[kagi];
+          })
+          .filter(function (v) {
+            return v != null;
+          });
+        // 返りは 倉庫の 上限（max_rows）で 切られうる・鍵が 欠けうる＝動かした 本数と 鍵の 数が 合わなければ 分からない（一部だけ 戻して 黙らない・対立役）
+        if (typeof u.count !== "number" || u.count !== keys.length)
+          return { error: { message: "動かした 行が 分からない" } };
+        // 鍵は 200 件ずつ 送る（URL の 長さで 落ちない・insert の 500 件ずつと 同じ 形）
+        for (var i = 0; i < keys.length; i += 200) {
+          var r = await SB.from(tbl)
+            .update({ company: oldName })
+            .eq("company", newName)
+            .in(kagi, keys.slice(i, i + 200));
+          if (!r || r.error) return r || { error: { message: "戻せなかった" } };
+        }
+        return null;
+      }
       async function renameCompany(oldName, newName) {
         toastUndoKesu(); // 古い 名前の 取り消しを 残さない（押すと 古い 名前で 書いた・対立役）
         newName = (newName || "").trim();
@@ -12129,28 +12153,34 @@
           renderMaster();
           return;
         }
-        var u0 = await SB.from("invoice_no").update({ company: newName }).eq("company", oldName);
+        // ★戻しは 動かした 行だけ★ 2026-10-16 対立役（新しい 名前で 一括に 戻すと、消した 会社の 名前に 残っていた
+        //   入金・明細・請求番号まで 元の 会社へ 動かした）。台帳は 鍵が (人, 月, 会社) なので 月で、明細・入金は id で 戻す
+        var u0 = await SB.from("invoice_no")
+          .update({ company: newName }, { count: "exact" })
+          .eq("company", oldName)
+          .select("month");
         if (u0 && u0.error) {
           cloudErr("会社名変更（請求番号の 台帳）", u0.error);
           renderMaster();
           return;
         }
         // クラウド側：会社名に紐づく明細・入金もまとめて改名（RLSで自分の分だけ）
-        var u1 = await SB.from("meisai").update({ company: newName }).eq("company", oldName);
-        var u2 = await SB.from("payments").update({ company: newName }).eq("company", oldName);
+        var u1 = await SB.from("meisai")
+          .update({ company: newName }, { count: "exact" })
+          .eq("company", oldName)
+          .select("id");
+        var u2 = await SB.from("payments")
+          .update({ company: newName }, { count: "exact" })
+          .eq("company", oldName)
+          .select("id");
         if ((u1 && u1.error) || (u2 && u2.error)) {
           // ★明細・入金の 改名が 落ちたら 台帳の 名前も 戻す★（対立役：台帳だけ 新しい 名前に なると 古い 名前で 出した 時に 番号が 2つ目に なる）
-          var m0 = await SB.from("invoice_no").update({ company: oldName }).eq("company", newName);
-          var m1 =
-            u1 && !u1.error
-              ? await SB.from("meisai").update({ company: oldName }).eq("company", newName)
-              : null;
+          var m0 = await modoshiDake("invoice_no", u0, "month", oldName, newName);
+          var m1 = u1 && !u1.error ? await modoshiDake("meisai", u1, "id", oldName, newName) : null;
           // 入金が 付け替わっていたら 入金も 戻す 2026-10-16（対立役：倉庫の 入金だけ 新しい 名前に 残り、
           //   開き直すと 古い 名前の 帯の 行が「記録なし＝直った」と 消えた）
           var m2 =
-            u2 && !u2.error
-              ? await SB.from("payments").update({ company: oldName }).eq("company", newName)
-              : null;
+            u2 && !u2.error ? await modoshiDake("payments", u2, "id", oldName, newName) : null;
           if ((m0 && m0.error) || (m1 && m1.error) || (m2 && m2.error)) {
             // ★戻しも 落ちた＝台帳・明細・入金の 名前が 割れて いる★（黙らない・対立役）
             toast(

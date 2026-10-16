@@ -749,3 +749,230 @@ test("会社名の 付け替えで 関係ない 会社の 帯の 行の 名前�
   });
   expect(na).toEqual(["名前を変えた株式会社", "関係ない会社"].sort());
 });
+
+// ── 本番前の 対立役（0764422）の 止める 指摘：戻しが 消した 会社の 行まで 動かした ──
+// 消した 会社「名前を変えた株式会社」の 入金・明細・請求番号が 倉庫に 残っている 形を 作る
+async function keshitaKaishaWoOku(page) {
+  await page.evaluate(async () => {
+    await markPaidFull("2026-05", "明細ある株式会社", 15400);
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+    const p0 = db.tables.payments.find((x) => x.company === "明細ある株式会社");
+    db.tables.payments.push(
+      Object.assign({}, p0, {
+        id: "pX-keshita",
+        company: "名前を変えた株式会社",
+        month: "2026-03",
+        paid: 9000,
+      })
+    );
+    const m0 = db.tables.meisai.find((x) => x.company === "明細ある株式会社");
+    db.tables.meisai.push(
+      Object.assign({}, m0, { id: "mX-keshita", company: "名前を変えた株式会社" })
+    );
+    const uid = p0.user_id;
+    db.tables.invoice_no.push(
+      {
+        user_id: uid,
+        month: "2026-03",
+        company: "名前を変えた株式会社",
+        invoice_no: "2026-03-01",
+        decided_at: "2026-04-01T00:00:00.000Z",
+      },
+      {
+        user_id: uid,
+        month: "2026-05",
+        company: "明細ある株式会社",
+        invoice_no: "2026-05-01",
+        decided_at: "2026-06-01T00:00:00.000Z",
+      }
+    );
+    localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
+  });
+}
+function kaishaDoko(page) {
+  return page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+    const co = (t, f) => db.tables[t].filter(f).map((r) => r.company);
+    return {
+      keshitaPay: co("payments", (r) => r.id === "pX-keshita"),
+      keshitaMeisai: co("meisai", (r) => r.id === "mX-keshita"),
+      keshitaBangou: co("invoice_no", (r) => r.month === "2026-03"),
+      aPay: co(
+        "payments",
+        (r) => r.month === "2026-05" && r.paid > 0 && r.id !== "pX-keshita"
+      ).filter((c) => c === "明細ある株式会社" || c === "名前を変えた株式会社"),
+      aMeisai: [
+        ...new Set(
+          co("meisai", (r) => r.id !== "mX-keshita").filter(
+            (c) => c === "明細ある株式会社" || c === "名前を変えた株式会社"
+          )
+        ),
+      ],
+      aBangou: co("invoice_no", (r) => r.month === "2026-05"),
+      master: Object.keys(MASTER).includes("明細ある株式会社"),
+    };
+  });
+}
+const KESHITA_NOKOSU = {
+  keshitaPay: ["名前を変えた株式会社"],
+  keshitaMeisai: ["名前を変えた株式会社"],
+  keshitaBangou: ["名前を変えた株式会社"],
+};
+
+test("明細の 付け替えが 落ちた 戻しは 動かした 行だけ（消した 会社の 入金・請求番号を 動かさない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await keshitaKaishaWoOku(page);
+  await page.evaluate(async () => {
+    window.__FAKE_FAIL_WRITES__ = ["meisai"];
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+    window.__FAKE_FAIL_WRITES__ = [];
+  });
+  expect(await kaishaDoko(page)).toEqual({
+    ...KESHITA_NOKOSU,
+    aPay: ["明細ある株式会社"],
+    aMeisai: ["明細ある株式会社"],
+    aBangou: ["明細ある株式会社"],
+    master: true,
+  });
+});
+
+test("入金の 付け替えが 落ちた 戻しは 動かした 明細だけ（消した 会社の 明細を 動かさない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await keshitaKaishaWoOku(page);
+  await page.evaluate(async () => {
+    window.__FAKE_FAIL_WRITES__ = ["payments"];
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+    window.__FAKE_FAIL_WRITES__ = [];
+  });
+  expect(await kaishaDoko(page)).toEqual({
+    ...KESHITA_NOKOSU,
+    aPay: ["明細ある株式会社"],
+    aMeisai: ["明細ある株式会社"],
+    aBangou: ["明細ある株式会社"],
+    master: true,
+  });
+});
+
+test("動かした 行が 分からない 時は 戻さず「戻せなかった」と 知らせる（一括で 他社の 行を 動かさない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await keshitaKaishaWoOku(page);
+  const shirase = await page.evaluate(async () => {
+    // 入金の 付け替えは 通るが、動かした 行を 返さない 倉庫
+    const moto = SB.from.bind(SB);
+    SB.from = function (t) {
+      const q = moto(t);
+      if (t === "payments") {
+        const up = q.update;
+        q.update = function () {
+          const a = up.apply(this, arguments);
+          const sel = a.select;
+          a.select = function () {
+            sel.apply(a, arguments);
+            return {
+              then: (res, rej) =>
+                a.then((r) => ({ data: null, error: r.error }), rej).then(res, rej),
+            };
+          };
+          return a;
+        };
+      }
+      return q;
+    };
+    window.__FAKE_FAIL_WRITES__ = ["meisai"];
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+    window.__FAKE_FAIL_WRITES__ = [];
+    SB.from = moto;
+    return document.body.innerText.includes("元に 戻せませんでした");
+  });
+  expect(shirase).toBe(true);
+  const d = await kaishaDoko(page);
+  expect(d.keshitaPay, "消した 会社の 入金を 動かした").toEqual(["名前を変えた株式会社"]);
+});
+
+// 倉庫の 返りが 上限で 切られた・鍵が 欠けた 形（入金の 付け替えの 返りを 書き換える）
+for (const [na, kaeru] of [
+  ["返りが 上限で 切られた（本数が 合わない）", "kireta"],
+  ["返った 行に 鍵が 欠けた", "kaketa"],
+]) {
+  test("動かした 行が 確かでない 時は 戻さず 知らせる：" + na, async ({ page }) => {
+    await hiraku(page);
+    await keshitaKaishaWoOku(page);
+    // 明細を もう1行 足し、2行 動く 形に する
+    await page.evaluate(() => {
+      const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+      const m0 = db.tables.meisai.find((x) => x.company === "明細ある株式会社");
+      db.tables.meisai.push(Object.assign({}, m0, { id: "m-tsuika" }));
+      localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
+    });
+    const r = await page.evaluate(async (kaeru) => {
+      const moto = SB.from.bind(SB);
+      SB.from = function (t) {
+        const q = moto(t);
+        if (t === "meisai") {
+          const up = q.update;
+          q.update = function () {
+            const a = up.apply(this, arguments);
+            const sel = a.select;
+            a.select = function () {
+              sel.apply(a, arguments);
+              return {
+                then: (res, rej) =>
+                  a
+                    .then((x) => {
+                      if (!x.data || x.data.length < 2) return x;
+                      if (kaeru === "kireta")
+                        return Object.assign({}, x, { data: x.data.slice(0, 1) });
+                      return Object.assign({}, x, { data: [x.data[0], { company: "?" }] });
+                    }, rej)
+                    .then(res, rej),
+              };
+            };
+            return a;
+          };
+        }
+        return q;
+      };
+      window.__FAKE_FAIL_WRITES__ = ["payments"];
+      await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+      window.__FAKE_FAIL_WRITES__ = [];
+      SB.from = moto;
+      const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+      return {
+        shirase: document.body.innerText.includes("元に 戻せませんでした"),
+        keshita: db.tables.meisai.find((x) => x.id === "mX-keshita").company,
+      };
+    }, kaeru);
+    expect(r).toEqual({ shirase: true, keshita: "名前を変えた株式会社" });
+  });
+}
+
+test("戻す 明細が 200 件を 超えても 全部 戻す（鍵を 分けて 送る）", async ({ page }) => {
+  await hiraku(page);
+  await keshitaKaishaWoOku(page);
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+    const m0 = db.tables.meisai.find((x) => x.company === "明細ある株式会社");
+    for (let i = 0; i < 450; i++) db.tables.meisai.push(Object.assign({}, m0, { id: "m-oi-" + i }));
+    localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
+  });
+  const r = await page.evaluate(async () => {
+    window.__FAKE_FAIL_WRITES__ = ["payments"];
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+    window.__FAKE_FAIL_WRITES__ = [];
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+    return {
+      nokori: db.tables.meisai.filter((x) => x.company === "名前を変えた株式会社").map((x) => x.id),
+      modotta: db.tables.meisai.filter(
+        (x) => String(x.id).startsWith("m-oi-") && x.company === "明細ある株式会社"
+      ).length,
+      shirase: document.body.innerText.includes("元に 戻せませんでした"),
+    };
+  });
+  expect(r).toEqual({ nokori: ["mX-keshita"], modotta: 450, shirase: false });
+});

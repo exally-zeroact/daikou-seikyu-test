@@ -304,3 +304,21 @@ test("記録の 無い 月で 空の まま 保存＝「記録しました」と
   await page.locator("#modalBody").getByRole("button", { name: /保存/ }).first().click();
   await expect(page.locator("#toast")).toContainText("この画面には入金の記録がありません");
 });
+
+test("一括の 取り消しで 戻せなかった 時は「戻せませんでした」と 出す（「取り消しました」と だけ 言わない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await page.evaluate(async () => {
+    payToggleRow("2026-05", "明細ある株式会社", 15400);
+    await bulkMarkPaid();
+  });
+  await expect(page.locator("#toastUndo")).toContainText("全入金にしました");
+  await page.evaluate(() => {
+    window.__FAKE_OFFLINE__ = true; // 消す 呼び出しも 落ちる（書けない 表の 切り替えは 消す 方に 効かない）
+  });
+  await page.locator("#toastUndo").getByRole("button", { name: "取り消す" }).click();
+  await expect(page.locator("#toast")).toContainText("1件のうち 1件を戻せませんでした", {
+    timeout: 10000,
+  });
+});

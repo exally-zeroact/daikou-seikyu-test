@@ -8768,11 +8768,24 @@
             bulkUndo(snaps);
           });
       }
+      // ★戻せなかった 会社を 黙らない★ 2026-10-16（対立役：何件か 戻せなくても 最後に「取り消しました」と だけ 出た）
       async function bulkUndo(snaps) {
+        var dame = [];
         for (var i = 0; i < snaps.length; i++) {
-          await undoPayState(snaps[i].month, snaps[i].co, snaps[i].snap);
+          var ok = await undoPayState(snaps[i].month, snaps[i].co, snaps[i].snap, true);
+          if (!ok) dame.push(snaps[i].co);
         }
-        toast("取り消しました");
+        if (dame.length)
+          toast(
+            snaps.length +
+              "件のうち " +
+              dame.length +
+              "件を戻せませんでした（" +
+              dame.join("、") +
+              "）。入金の画面で確かめてください。",
+            8000
+          );
+        else toast("取り消しました");
       }
       function openPayEdit(month, co) {
         var iv = seikyuList(month, { kieta: true }).filter(function (x) {
@@ -9038,15 +9051,16 @@
         });
       }
       // 全入金の取り消し＝直前の状態へ戻す（元が未入金なら記録削除）。
-      async function undoPayState(month, co, snap) {
+      // 返り値＝戻せたか（一括の 取り消しが 何件 戻せなかったかを 数える）。damaru＝1件ごとの 知らせを 出さない
+      async function undoPayState(month, co, snap, damaru) {
         // ★入金を 読めていない 時は 書かない・消さない★（未入金に 見えた まま 上書き・取り消しで 消した・対立役 A1）
-        if (yomenaiTomeru(["payments"], "入金の 保存")) return;
+        if (yomenaiTomeru(["payments"], "入金の 保存")) return false;
         var key = payKeyFor(month, co);
         if (snap === null) {
           var del = await SB.from("payments").delete().eq("month", month).eq("company", co);
           if (del.error) {
             cloudErr("入金取消", del.error);
-            return;
+            return false;
           }
           delete PAYMENTS[key];
         } else {
@@ -9067,7 +9081,7 @@
             .single();
           if (up.error) {
             cloudErr("入金取消", up.error);
-            return;
+            return false;
           }
           PAYMENTS[key] = {
             paid: snap.paid,
@@ -9078,7 +9092,8 @@
         }
         renderPayments();
         updatePayBadge();
-        toast("取り消しました");
+        if (!damaru) toast("取り消しました");
+        return true;
       }
       // 取り消しボタン付きトースト（通常 toast とは別要素・別タイマー＝監査指摘）。
       // 前の 取り消しを 閉じる 2026-10-16（対立役：取り消しの 知らせが 出ている 間に 別の 保存を し、その後

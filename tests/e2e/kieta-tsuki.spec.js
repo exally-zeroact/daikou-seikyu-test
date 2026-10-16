@@ -752,7 +752,9 @@ test("会社名の 付け替えで 関係ない 会社の 帯の 行の 名前�
 
 // ── 本番前の 対立役（0764422）の 止める 指摘：戻しが 消した 会社の 行まで 動かした ──
 // 消した 会社「名前を変えた株式会社」の 入金・明細・請求番号が 倉庫に 残っている 形を 作る
-async function keshitaKaishaWoOku(page) {
+async function keshitaKaishaWoOku(page, { kiku = "accept" } = {}) {
+  // 残っている 記録と 混ぜるかの 確かめ（司さん 10-16）：既定は「混ぜる」（付け替えの 戻しを 見る 試験）
+  if (kiku !== "none") page.on("dialog", (d) => (kiku === "accept" ? d.accept() : d.dismiss()));
   await page.evaluate(async () => {
     await markPaidFull("2026-05", "明細ある株式会社", 15400);
     const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
@@ -1031,4 +1033,157 @@ test("消した 会社の 残りが 多すぎる 時は 戻さず「戻せなか
     };
   });
   expect(r).toEqual({ shirase: true, keshitaUgoita: 0 });
+});
+
+// ── 司さんの 決め（10-16）：消した 会社の 記録が 残る 名前へ 変える・同じ 名前で 足す 時は「混ぜますか」と 訊く ──
+test("残っている 名前へ 付け替える 時は 件数つきで 訊き、「混ぜない」なら 何も 変えない", async ({
+  page,
+}) => {
+  await hiraku(page);
+  const kiita = [];
+  await keshitaKaishaWoOku(page, { kiku: "dismiss" });
+  page.on("dialog", (d) => kiita.push(d.message()));
+  await page.evaluate(async () => {
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+  });
+  expect(kiita.length, "訊いていない").toBe(1);
+  expect(kiita[0]).toContain("入金 1 件");
+  expect(kiita[0]).toContain("明細 1 件");
+  expect(kiita[0]).toContain("請求番号 1 件");
+  expect(await kaishaDoko(page)).toEqual({
+    ...KESHITA_NOKOSU,
+    aPay: ["明細ある株式会社"],
+    aMeisai: ["明細ある株式会社"],
+    aBangou: ["明細ある株式会社"],
+    master: true,
+  });
+});
+
+test("残っている 名前へ 付け替える 時に「混ぜる」なら 付け替える", async ({ page }) => {
+  await hiraku(page);
+  await keshitaKaishaWoOku(page, { kiku: "accept" });
+  await page.evaluate(async () => {
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+  });
+  const d = await kaishaDoko(page);
+  expect(d.master, "付け替えていない").toBe(false);
+  expect(d.aPay).toEqual(["名前を変えた株式会社"]);
+});
+
+test("残りが 無い 名前へは 訊かずに 付け替える", async ({ page }) => {
+  await hiraku(page);
+  let kiita = 0;
+  page.on("dialog", (d) => {
+    kiita++;
+    d.dismiss();
+  });
+  const ok = await page.evaluate(async () => {
+    await renameCompany("明細ある株式会社", "まっさらな株式会社");
+    return Object.keys(MASTER).includes("まっさらな株式会社");
+  });
+  expect({ ok, kiita }).toEqual({ ok: true, kiita: 0 });
+});
+
+for (const kiku of ["dismiss", "accept"]) {
+  test("消した 会社と 同じ 名前で 足す 時も 訊く：" + kiku, async ({ page }) => {
+    await hiraku(page);
+    await keshitaKaishaWoOku(page, { kiku });
+    const r = await page.evaluate(async () => {
+      openAddCompany();
+      document.getElementById("newCoName").value = "名前を変えた株式会社";
+      await addCompany();
+      return Object.keys(MASTER).includes("名前を変えた株式会社");
+    });
+    expect(r).toBe(kiku === "accept");
+  });
+}
+
+test("足す 時に 同じ 名前の 記録の 確かめが 読めなければ 足さない", async ({ page }) => {
+  await hiraku(page);
+  const r = await page.evaluate(async () => {
+    openAddCompany();
+    document.getElementById("newCoName").value = "まっさらな株式会社";
+    window.__FAKE_FAIL_TABLES__ = ["meisai"];
+    await addCompany();
+    window.__FAKE_FAIL_TABLES__ = [];
+    return {
+      tashita: Object.keys(MASTER).includes("まっさらな株式会社"),
+      shirase: document.body.innerText.includes("会社を 足しませんでした"),
+    };
+  });
+  expect(r).toEqual({ tashita: false, shirase: true });
+});
+
+test("発行した 控え だけが 残る 名前で 足す 時も 訊く（控えの 額が 前の 月に 混ざる）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  const kiita = [];
+  page.on("dialog", (d) => {
+    kiita.push(d.message());
+    d.dismiss();
+  });
+  const r = await page.evaluate(async () => {
+    openAddCompany();
+    document.getElementById("newCoName").value = "古い名前株式会社"; // 種に 控え 1 件だけが 在る 名前
+    await addCompany();
+    return Object.keys(MASTER).includes("古い名前株式会社");
+  });
+  expect(kiita.length, "訊いていない").toBe(1);
+  expect(kiita[0]).toContain("控え 1 件");
+  expect(r).toBe(false);
+});
+
+test("足すを 2回 押しても 訊くのは 1回（2回目の 答えで 嘘の 知らせを 出さない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  let kiita = 0;
+  page.on("dialog", (d) => {
+    kiita++;
+    d.accept();
+  });
+  await keshitaKaishaWoOku(page, { kiku: "none" });
+  const r = await page.evaluate(async () => {
+    openAddCompany();
+    document.getElementById("newCoName").value = "名前を変えた株式会社";
+    await Promise.all([addCompany(), addCompany()]);
+    return Object.keys(MASTER).filter((k) => k === "名前を変えた株式会社").length;
+  });
+  expect({ kiita, r }).toEqual({ kiita: 1, r: 1 });
+});
+
+test("消した 入金・0円の 入金 だけが 残る 名前へは 訊かない（客に 見えない 行で 止めない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  let kiita = 0;
+  page.on("dialog", (d) => {
+    kiita++;
+    d.dismiss();
+  });
+  const ok = await page.evaluate(async () => {
+    await markPaidFull("2026-05", "明細ある株式会社", 15400);
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+    const p0 = db.tables.payments.find((x) => x.company === "明細ある株式会社");
+    db.tables.payments.push(
+      Object.assign({}, p0, {
+        id: "p-kesu",
+        company: "見えない株式会社",
+        month: "2026-03",
+        paid: 9000,
+        deleted_at: "2026-04-01T00:00:00.000Z",
+      }),
+      Object.assign({}, p0, {
+        id: "p-zero",
+        company: "見えない株式会社",
+        month: "2026-02",
+        paid: 0,
+      })
+    );
+    localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
+    await renameCompany("明細ある株式会社", "見えない株式会社");
+    return Object.keys(MASTER).includes("見えない株式会社");
+  });
+  expect({ ok, kiita }).toEqual({ ok: true, kiita: 0 });
 });

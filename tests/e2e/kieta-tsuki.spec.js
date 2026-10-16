@@ -198,3 +198,41 @@ test("他の アカウントの 入金の 記録・請求番号は 明細なし�
   expect(r).not.toContain("他人の会社2");
   expect(r).toContain("自分の会社");
 });
+
+// ── 本番前の 対立役（01a27a6）の 指摘 ──
+test("取り消しの 知らせが 出ている 間に 窓を 開くと 前の 取り消しは 閉じる（新しい 記録を 古い 物で 上書きしない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await gyou(page, B, "2026年5月").click();
+  await page.locator("#modalBody #pay_amt").fill("0");
+  await page.locator("#modalBody #pay_date").fill("");
+  await page.locator("#modalBody #pay_note").fill("");
+  await page.locator("#modalBody").getByRole("button", { name: /保存/ }).first().click();
+  await expect(page.locator("#toastUndo")).toContainText("記録を消しました");
+  // 5秒 以内に 別の 窓を 開く＝前の 取り消しは 消える
+  await gyou(page, A, "2026年5月").click();
+  await expect(page.locator("#toastUndo")).not.toHaveClass(/show/);
+  await expect(page.locator("#toastUndo .toast-undo-btn")).toHaveCount(0);
+});
+
+test("全入金の 知らせの 会社名は 二重に 化けない（& や < を そのまま）", async ({ page }) => {
+  await hiraku(page);
+  const ji = await page.evaluate(async () => {
+    const co = "A&B<株>";
+    MASTER[co] = { account_id: CURRENT_ACCOUNT, items: ["日付", "行き先", "金額"] };
+    await markPaidFull("2026-05", co, 1000);
+    return document.getElementById("toastUndo").textContent;
+  });
+  expect(ji).toContain("A&B<株> を全入金にしました");
+});
+
+test("記録の 無い 月で 空の まま 保存＝「記録しました」と 言わない", async ({ page }) => {
+  await hiraku(page);
+  await gyou(page, A, "2026年5月").click();
+  await page.locator("#modalBody #pay_amt").fill("0");
+  await page.locator("#modalBody #pay_date").fill("");
+  await page.locator("#modalBody #pay_note").fill("");
+  await page.locator("#modalBody").getByRole("button", { name: /保存/ }).first().click();
+  await expect(page.locator("#toast")).toContainText("入金の記録はありません");
+});

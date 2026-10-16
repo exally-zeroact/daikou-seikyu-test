@@ -3955,7 +3955,10 @@
             .range(a, b);
         });
         if (p.error) cloudErr("入金読込", p.error);
-        else YOMENAI.payments = false;
+        else {
+          YOMENAI.payments = false;
+          PAY_YONDA = Date.now(); // この タブが 入金を 読んだ 時刻（帯の「直った」判じに 使う）
+        }
         if (!p.error)
           p.data.forEach(function (r) {
             PAYMENTS[CURRENT_ACCOUNT + "::" + r.month + "::" + r.company] = {
@@ -8768,6 +8771,7 @@
             note: (prev && prev.note) || "",
             _dbid: up.data.id,
           };
+          payKaita(k);
           snaps.push({ month: sel.month, co: sel.co, snap: prev });
           ok++;
         }
@@ -8818,13 +8822,22 @@
           return undefined;
         }
       }
+      // 書けたかを 覚える（書けない 端末で 覚えを 正に すると 帯が 一度も 出ない・新しい 行が 消えた・対立役）
+      var MODOSE_KAKETA = true;
       function modoseKaku() {
         try {
           if (MODOSE) localStorage.setItem(modoseKagi(), JSON.stringify(MODOSE));
           else localStorage.removeItem(modoseKagi());
+          MODOSE_KAKETA = true;
         } catch (e) {
-          /* 覚えられない 端末＝この 画面の 間だけ */
+          MODOSE_KAKETA = false; // 覚えられない 端末＝この 画面の 間だけ（覚えを 正に しない）
         }
+      }
+      // 入金の 新しさ：この タブが 読んだ 時刻と、その 鍵を この タブで 書き換えた 時刻の 新しい 方
+      var PAY_YONDA = 0;
+      var PAY_KOSHIN = {};
+      function payKaita(key) {
+        PAY_KOSHIN[key] = Date.now();
       }
       function modoseTojiru() {
         MODOSE = null;
@@ -8838,7 +8851,7 @@
       function modoseNakattaMado(zen, dame) {
         // ★足す 前に 端末の 覚えを 読み直す★（別の タブが 足した 行・閉じた 帯を 古い 一覧で 上書きしない・対立役）
         var y = modoseYomu();
-        var mae = (y !== undefined ? y : MODOSE) || { dame: [] };
+        var mae = (y !== undefined && MODOSE_KAKETA ? y : MODOSE) || { dame: [] };
         var aru = {};
         mae.dame.forEach(function (x) {
           aru[x.month + " " + x.co] = 1;
@@ -8862,7 +8875,11 @@
       }
       // 前の 状態に 直った 行は 消す（直し終えても「直して」と 言い続けない・古い 額で 上書きさせない）
       function modoseNaotta(x) {
-        var r = PAYMENTS[payKeyFor(x.month, x.co)];
+        var key = payKeyFor(x.month, x.co);
+        var shinsen = Math.max(PAY_YONDA, PAY_KOSHIN[key] || 0);
+        var t = Date.parse(x.at);
+        if (isFinite(t) && t > shinsen) return false; // この タブの 入金は その 行より 古い＝判じない
+        var r = PAYMENTS[key];
         // 前が 記録なし＝記録が 消えたか 額が 0（未入金(0) で 保存した 形）なら 直った
         if (!x.snap) return !r || Number(r.paid) === 0;
         return (
@@ -8875,7 +8892,7 @@
         var body = document.getElementById("payBody");
         if (!body) return;
         var y = modoseYomu(); // 描く 度に 端末の 覚えを 正に する（別の タブの 足し・閉じるに 合わせる）
-        if (y !== undefined) MODOSE = y;
+        if (y !== undefined && MODOSE_KAKETA) MODOSE = y; // 書けない 端末では この 画面の 一覧を 使う
         if (MODOSE && !YOMENAI.payments) {
           var nokori = MODOSE.dame.filter(function (x) {
             return !modoseNaotta(x);
@@ -9130,6 +9147,7 @@
             return;
           }
           delete PAYMENTS[key];
+          payKaita(key);
           keshita = !!snap;
         } else {
           if (amt >= total && !date) {
@@ -9161,6 +9179,7 @@
             return;
           }
           PAYMENTS[key] = { paid: amt, paidDate: date, note: note, _dbid: up.data.id };
+          payKaita(key);
         }
         closeModal();
         renderPayments();
@@ -9214,6 +9233,7 @@
           note: (snap && snap.note) || "",
           _dbid: up.data.id,
         };
+        payKaita(key);
         renderPayments();
         updatePayBadge();
         toastUndo(co + " を全入金にしました", function () {
@@ -9233,6 +9253,7 @@
             return false;
           }
           delete PAYMENTS[key];
+          payKaita(key);
         } else {
           var up = await SB.from("payments")
             .upsert(
@@ -9259,6 +9280,7 @@
             note: snap.note,
             _dbid: up.data.id,
           };
+          payKaita(key);
         }
         renderPayments();
         updatePayBadge();
@@ -12147,6 +12169,8 @@
           if (parts.slice(2).join("::") === oldName) {
             PAYMENTS[parts[0] + "::" + parts[1] + "::" + newName] = PAYMENTS[k];
             delete PAYMENTS[k];
+            payKaita(k);
+            payKaita(parts[0] + "::" + parts[1] + "::" + newName);
           }
         });
         await saveMaster(); // 会社名(name)の更新をクラウドへ

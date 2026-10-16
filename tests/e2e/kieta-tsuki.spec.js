@@ -552,6 +552,7 @@ test("額が 空の 字なら「額が 読めない」・メモの 本文は 覚
       paidDate: "2026-06-01",
       note: "",
     };
+    payKaita(payKeyFor("2026-05", "明細ある株式会社")); // この タブで 書き換えた（保存の 道と 同じ 印）
     renderPayments();
   });
   await expect(obi).not.toContainText("明細ある株式会社");
@@ -618,4 +619,42 @@ test("別の タブで 足された 行・閉じた 帯に 合わせる（古い
     renderPayments();
   });
   await expect(page.locator("#payModose")).toHaveCount(0);
+});
+
+// ── 本番前の 対立役（592de9e）の 指摘 ──
+test("覚えに 書けない 端末でも 帯は 出て、新しい 行も 出る（覚えを 正に しない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    modoseNakattaMado(1, [{ month: "2026-04", co: "古い行の会社", snap: { paid: 1 } }]);
+    // ここから 書けなく なる（読めは する）
+    const moto = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (String(k).indexOf("payModose:") === 0) throw new Error("いっぱい");
+      return moto.call(this, k, v);
+    };
+    modoseNakattaMado(1, [{ month: "2026-05", co: "新しい行の会社", snap: { paid: 2 } }]);
+    renderPayments();
+  });
+  const obi = page.locator("#payModose");
+  await expect(obi).toContainText("古い行の会社");
+  await expect(obi).toContainText("新しい行の会社");
+});
+
+test("古い タブは 自分が 入金を 読んだ 後に 起きた 行を「直った」と 消さない", async ({ page }) => {
+  await hiraku(page);
+  const tsugi = await page.evaluate(() => {
+    // 別の タブが 今 足した 行（この タブの 入金は それより 古い＝記録なしに 見える）
+    const k = "payModose:" + CURRENT_ACCOUNT;
+    const ato = new Date(Date.now() + 60000).toISOString();
+    localStorage.setItem(
+      k,
+      JSON.stringify({ dame: [{ month: "2026-05", co: "明細ある株式会社", at: ato, snap: null }] })
+    );
+    renderPayments();
+    return JSON.parse(localStorage.getItem(k) || "null");
+  });
+  expect(tsugi && tsugi.dame.length, "古い タブが 別の タブの 行を 消した").toBe(1);
+  await expect(page.locator("#payModose")).toContainText("明細ある株式会社");
 });

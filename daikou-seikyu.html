@@ -958,6 +958,22 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .pay-modose {
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border: 2px solid #c0392b;
+        border-radius: 8px;
+        background: #fff5f4;
+        color: #7a1f17;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .pay-modose-hd {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        justify-content: space-between;
+      }
       .pay-pill.kieta {
         background: #eeeeee;
         color: #555555;
@@ -2808,12 +2824,7 @@
         transition: all 0.25s;
         z-index: 200;
         pointer-events: none;
-        /* 長い 知らせは 折り返す（電話の 幅で 頭と 終わりが 画面の 外に 切れた・対立役 2026-10-16） */
-        white-space: normal;
-        width: max-content;
-        max-width: calc(100vw - 32px);
-        text-align: center;
-        line-height: 1.5;
+        white-space: nowrap;
       }
       .toast.show {
         opacity: 1;
@@ -8531,6 +8542,7 @@
         refreshPayMonthSelect();
         var month = document.getElementById("payMonth").value;
         var statusF = document.getElementById("payStatus").value;
+        renderModose(); // 戻せなかった 入金の 一覧（閉じるまで 残す）
         var invs = seikyuList(month || null, { kieta: true });
         // 状態を付与しつつ集計
         var totalSum = 0,
@@ -8778,31 +8790,69 @@
         var dame = [];
         for (var i = 0; i < snaps.length; i++) {
           var ok = await undoPayState(snaps[i].month, snaps[i].co, snaps[i].snap, true);
-          if (!ok) {
-            // どの 月の どの 会社が 何に 戻るはずだったか（客が 手で 直せる 様に）
-            var mm = Number(String(snaps[i].month).split("-")[1]) || "";
-            var mae = snaps[i].snap
-              ? "前は " + yen(Number(snaps[i].snap.paid) || 0)
-              : "前は 記録なし";
-            dame.push(mm + "月 " + snaps[i].co + "（" + mae + "）");
-          }
+          if (!ok) dame.push(snaps[i]);
         }
-        if (dame.length) {
-          // 訳も 書く（読めていない 時は 開き直す・通信なら この 画面で 前の 額に 直す）
-          var yomenai = yomenaiNo(["payments"]).length > 0;
-          toast(
-            snaps.length +
+        if (!dame.length) return toast("取り消しました");
+        toast(
+          snaps.length + "件のうち " + dame.length + "件を戻せませんでした（一覧を出しています）"
+        );
+        modoseNakattaMado(snaps.length, dame, yomenaiNo(["payments"]).length > 0);
+      }
+      // ★戻せなかった 入金の 一覧★ 2026-10-16（対立役：知らせ 1枚だと 電話で 切れる・直して 保存すると 消える）
+      //   入金の 画面の 一覧の 上に「閉じる」まで 残す（窓に すると 直す 窓を 開いた 時に 消える）。
+      //   年・月・会社・前の 額・前の 入金日（客が 手で 前に 戻せる 様に）
+      var MODOSE = null;
+      function modoseNakattaMado(zen, dame, yomenai) {
+        MODOSE = { zen: zen, dame: dame, yomenai: yomenai };
+        renderModose();
+      }
+      function renderModose() {
+        var body = document.getElementById("payBody");
+        if (!body) return;
+        var el = document.getElementById("payModose");
+        if (!MODOSE) {
+          if (el) el.remove();
+          return;
+        }
+        if (!el) {
+          el = document.createElement("div");
+          el.id = "payModose";
+          el.className = "pay-modose";
+          body.parentNode.insertBefore(el, body);
+        }
+        var nen = function (m) {
+          var p = String(m).split("-");
+          return Number(p[0]) + "年" + Number(p[1]) + "月";
+        };
+        var gyou = MODOSE.dame
+          .map(function (x) {
+            var mae = !x.snap
+              ? "前は 記録なし（未入金に 戻す）"
+              : "前は " +
+                (isFinite(Number(x.snap.paid)) ? yen(Number(x.snap.paid)) : "額が 読めない") +
+                (x.snap.paidDate ? "・入金日 " + x.snap.paidDate : "") +
+                (x.snap.note ? "・メモ あり" : "");
+            return "<li>" + esc(nen(x.month) + " " + x.co) + "：" + esc(mae) + "</li>";
+          })
+          .join("");
+        el.innerHTML =
+          '<div class="pay-modose-hd"><b>' +
+          esc(
+            MODOSE.zen +
               "件のうち " +
-              dame.length +
-              "件を戻せませんでした：" +
-              dame.join("、") +
-              "。" +
-              (yomenai
-                ? "入金を読めていません。画面を開き直して確かめてください。"
-                : "通信を確かめてから、入金の画面で前の額に直してください。"),
-            12000
-          );
-        } else toast("取り消しました");
+              MODOSE.dame.length +
+              "件を前に戻せませんでした（今は「全入金」のまま）"
+          ) +
+          '</b><button type="button" class="btn btn-ghost btn-sm" onclick="MODOSE=null;renderModose();">閉じる</button></div>' +
+          '<ul style="max-height:40vh;overflow:auto;margin:6px 0;padding-left:18px;">' +
+          gyou +
+          "</ul><div>" +
+          esc(
+            MODOSE.yomenai
+              ? "入金を読めていません。画面を開き直して確かめてください。"
+              : "通信を確かめてから、下の一覧で 1件ずつ 前の額に直してください。直し終えたら「閉じる」。"
+          ) +
+          "</div>";
       }
       function openPayEdit(month, co) {
         var iv = seikyuList(month, { kieta: true }).filter(function (x) {

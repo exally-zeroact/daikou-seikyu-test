@@ -318,17 +318,24 @@ test("一括の 取り消しで 戻せなかった 時は「戻せませんで�
     window.__FAKE_OFFLINE__ = true; // 消す 呼び出しも 落ちる（書けない 表の 切り替えは 消す 方に 効かない）
   });
   await page.locator("#toastUndo").getByRole("button", { name: "取り消す" }).click();
-  await expect(page.locator("#toast")).toContainText(
-    "1件のうち 1件を戻せませんでした：5月 明細ある株式会社（前は 記録なし）",
-    { timeout: 10000 }
-  );
-  await expect(page.locator("#toast")).toContainText("通信を確かめてから");
+  await expect(page.locator("#toast")).toContainText("1件のうち 1件を戻せませんでした", {
+    timeout: 10000,
+  });
+  const obi = page.locator("#payModose");
+  await expect(obi).toContainText("2026年5月 明細ある株式会社：前は 記録なし");
+  await expect(obi).toContainText("通信を確かめてから");
 });
 
 // 元の 額に 戻す 書き込み（upsert）だけ 落とす：会社名で 狙う
 async function upsertWoOtosu(page, co) {
   await page.evaluate((co) => {
-    const moto = SB.from.bind(SB);
+    // ★元の SB.from を 1回だけ 覚える★（重ねて 包むと 前の 落とし方が 残る）。co が null なら 元に 戻す
+    if (!window.__sbMoto) window.__sbMoto = SB.from.bind(SB);
+    const moto = window.__sbMoto;
+    if (co === null) {
+      SB.from = moto;
+      return;
+    }
     SB.from = function (t) {
       const q = moto(t);
       if (t !== "payments") return q;
@@ -377,23 +384,31 @@ test("一括の 取り消し：2件の うち 前の 記録が 在る 1件だけ
   await expect(page.locator("#toastUndo")).toContainText("2件を全入金にしました");
   await upsertWoOtosu(page, "明細ある株式会社");
   await page.locator("#toastUndo").getByRole("button", { name: "取り消す" }).click();
-  const t = page.locator("#toast");
-  await expect(t).toContainText(
-    "2件のうち 1件を戻せませんでした：5月 明細ある株式会社（前は ¥3,000）",
-    {
-      timeout: 10000,
-    }
-  );
-  // 電話の 幅で 箱が 画面の 中に 収まる（頭と 終わりが 切れない）
-  const b = await t.boundingBox();
+  await expect(page.locator("#toast")).toContainText("2件のうち 1件を戻せませんでした", {
+    timeout: 10000,
+  });
+  const obi = page.locator("#payModose");
+  await expect(obi).toContainText("2026年5月 明細ある株式会社：前は ¥3,000・入金日 2026-06-01");
+  await expect(obi).not.toContainText("二つ目株式会社");
+  // 電話の 幅で 帯が 画面の 中に 収まり、字が はみ出さない
+  const b = await obi.boundingBox();
   expect(b.x, "左に はみ出す").toBeGreaterThanOrEqual(0);
   expect(b.x + b.width, "右に はみ出す").toBeLessThanOrEqual(375);
-  // 字が 箱から はみ出していない（箱は 収まっても 折り返さないと 字が 外に 出る）
-  const hami = await t.evaluate((e) => e.scrollWidth - e.clientWidth);
-  expect(hami, "字が 箱から はみ出す").toBeLessThanOrEqual(1);
+  expect(b.y, "上に はみ出す").toBeGreaterThanOrEqual(0);
+  const hami = await obi.evaluate((e) => e.scrollWidth - e.clientWidth);
+  expect(hami, "字が 帯から はみ出す").toBeLessThanOrEqual(1);
   // 戻せた 方（二つ目）は 全入金が 消えている
   const rest = await page.evaluate(() => PAYMENTS[payKeyFor("2026-05", "二つ目株式会社")] || null);
   expect(rest).toBeNull();
+  // 1件 直して 保存しても 帯は 残る（知らせ 1枚だと 上書きで 消えた）
+  await upsertWoOtosu(page, null);
+  await page.locator("#payBody .pay-item").filter({ hasText: "明細ある株式会社" }).first().click();
+  await page.locator("#modalBody #pay_amt").fill("3000");
+  await page.locator("#modalBody").getByRole("button", { name: /保存/ }).first().click();
+  await expect(page.locator("#toast")).toContainText("入金を記録しました");
+  await expect(page.locator("#payModose")).toContainText("2026年5月 明細ある株式会社");
+  await page.locator("#payModose").getByRole("button", { name: "閉じる" }).click();
+  await expect(page.locator("#payModose")).toHaveCount(0);
 });
 
 test("一括の 取り消しの 間に 入金を 読めなく なった＝「画面を開き直して」と 出す（「この画面で 直して」と 言わない）", async ({
@@ -409,7 +424,7 @@ test("一括の 取り消しの 間に 入金を 読めなく なった＝「画
     YOMENAI.payments = true;
   });
   await page.locator("#toastUndo").getByRole("button", { name: "取り消す" }).click();
-  await expect(page.locator("#toast")).toContainText("画面を開き直して確かめてください", {
+  await expect(page.locator("#payModose")).toContainText("画面を開き直して確かめてください", {
     timeout: 10000,
   });
 });

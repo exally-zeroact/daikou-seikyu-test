@@ -8799,7 +8799,7 @@
             dame.length +
             "件を戻せませんでした（入金の画面に一覧を出しています）"
         );
-        modoseNakattaMado(snaps.length, dame, yomenaiNo(["payments"]).length > 0);
+        modoseNakattaMado(snaps.length, dame);
       }
       // ★戻せなかった 入金の 一覧★ 2026-10-16（対立役：知らせ 1枚だと 電話で 切れる・直して 保存すると 消える）
       //   入金の 画面の 一覧の 上に「閉じる」まで 残す（窓に すると 直す 窓を 開いた 時に 消える）。
@@ -8831,26 +8831,55 @@
         renderModose();
       }
       // ★足す★（2回目に 戻せなかった 時に 1回目の まだ 直していない 行を 消さない・対立役）。
-      //   同じ 月×会社は 最初の 前の 状態を 残す（2回目の 前の 状態は「全入金」の 後の 物）
-      function modoseNakattaMado(zen, dame, yomenai) {
-        var mae = MODOSE || modoseYomu() || { zen: 0, dame: [] };
+      //   同じ 月×会社は 最初の 前の 状態を 残す（2回目の 前の 状態は「全入金」の 後の 物）。
+      //   覚えるのは 額・入金日・メモの 有無・起きた 日時 だけ（メモの 本文・倉庫の id は 覚えない・対立役）。
+      //   読めない かどうかは 覚えない＝描く 時に 引き直す（覚えると 開き直して 読めた 後も「読めていません」と 出続けた）
+      function modoseNakattaMado(zen, dame) {
+        var mae = MODOSE || modoseYomu() || { dame: [] };
         var aru = {};
         mae.dame.forEach(function (x) {
           aru[x.month + " " + x.co] = 1;
         });
+        var ima = new Date().toISOString();
         dame.forEach(function (x) {
           if (aru[x.month + " " + x.co]) return;
           aru[x.month + " " + x.co] = 1;
-          mae.dame.push({ month: x.month, co: x.co, snap: x.snap || null });
+          mae.dame.push({
+            month: x.month,
+            co: x.co,
+            at: ima,
+            snap: x.snap
+              ? { paid: x.snap.paid, paidDate: x.snap.paidDate || "", memo: !!x.snap.note }
+              : null,
+          });
         });
-        MODOSE = { zen: mae.zen + zen, dame: mae.dame, yomenai: !!yomenai };
+        MODOSE = { dame: mae.dame };
         modoseKaku();
         renderModose();
+      }
+      // 前の 状態に 直った 行は 消す（直し終えても「直して」と 言い続けない・古い 額で 上書きさせない）
+      function modoseNaotta(x) {
+        var r = PAYMENTS[payKeyFor(x.month, x.co)];
+        if (!x.snap) return !r;
+        return (
+          !!r &&
+          String(r.paid) === String(x.snap.paid) &&
+          String(r.paidDate || "") === String(x.snap.paidDate || "")
+        );
       }
       function renderModose() {
         var body = document.getElementById("payBody");
         if (!body) return;
         if (!MODOSE) MODOSE = modoseYomu();
+        if (MODOSE && !YOMENAI.payments) {
+          var nokori = MODOSE.dame.filter(function (x) {
+            return !modoseNaotta(x);
+          });
+          if (nokori.length !== MODOSE.dame.length) {
+            MODOSE = nokori.length ? { dame: nokori } : null;
+            modoseKaku();
+          }
+        }
         var el = document.getElementById("payModose");
         if (!MODOSE) {
           if (el) el.remove();
@@ -8870,6 +8899,21 @@
           // 空・null・数で ない＝「額が 読めない」（¥0 と 言わない）
           return v == null || v === "" || !isFinite(Number(v)) ? "額が 読めない" : yen(Number(v));
         };
+        var hi = function (iso) {
+          var t = Date.parse(iso);
+          if (!isFinite(t)) return "";
+          var d = new Date(t);
+          return (
+            d.getMonth() +
+            1 +
+            "/" +
+            d.getDate() +
+            " " +
+            d.getHours() +
+            ":" +
+            ("0" + d.getMinutes()).slice(-2)
+          );
+        };
         var gyou = MODOSE.dame
           .map(function (x) {
             var mae = !x.snap
@@ -8877,10 +8921,20 @@
               : "前は " +
                 gaku(x.snap.paid) +
                 (x.snap.paidDate ? "・入金日 " + x.snap.paidDate : "") +
-                (x.snap.note ? "・メモ あり" : "");
-            return "<li>" + esc(nen(x.month) + " " + x.co) + "：" + esc(mae) + "</li>";
+                (x.snap.memo ? "・メモ あり" : "");
+            return (
+              "<li>" +
+              esc(nen(x.month) + " " + x.co) +
+              "：" +
+              esc(mae) +
+              (hi(x.at)
+                ? '<span style="color:#888;">（' + esc(hi(x.at)) + " に取り消せなかった）</span>"
+                : "") +
+              "</li>"
+            );
           })
           .join("");
+        var yomenai = yomenaiNo(["payments"]).length > 0;
         el.innerHTML =
           '<div class="pay-modose-hd"><b>' +
           esc(
@@ -8891,10 +8945,10 @@
           gyou +
           "</ul><div>" +
           esc(
-            (MODOSE.yomenai
+            (yomenai
               ? "入金を読めていません。画面を開き直して確かめてください（開き直しても この一覧は残ります）。"
-              : "通信を確かめてから、下の一覧で 1件ずつ 前の額に直してください。") +
-              "月や状態で絞り込んでいる時は「全期間」に戻すと出ます。直し終えたら「閉じる」。"
+              : "下の一覧で 1件ずつ 前の額に直してください（前の額に直った行は ここから消えます）。") +
+              "月や状態で絞り込んでいる時は「全期間」に戻すと出ます。"
           ) +
           "</div>";
       }

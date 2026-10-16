@@ -15,6 +15,8 @@ const KYUU = "古い名前株式会社";
 
 function seed() {
   return () => {
+    // 同じ 試験の 中で 開き直した 時は 倉庫を 作り直さない（本物の 倉庫は 開き直しても 記録が 残る）
+    if (localStorage.getItem("__fake_supa_db__")) return;
     const uid = "u_ki";
     const meisai = (id, co, date, amount) => ({
       id,
@@ -323,7 +325,7 @@ test("一括の 取り消しで 戻せなかった 時は「戻せませんで�
   });
   const obi = page.locator("#payModose");
   await expect(obi).toContainText("2026年5月 明細ある株式会社：前は 記録なし");
-  await expect(obi).toContainText("通信を確かめてから");
+  await expect(obi).toContainText("下の一覧で 1件ずつ 前の額に直してください");
 });
 
 // 元の 額に 戻す 書き込み（upsert）だけ 落とす：会社名で 狙う
@@ -490,4 +492,68 @@ test("2回目に 戻せなかった 物は 1回目の 一覧に 足す（消さ�
   await expect(obi).not.toContainText("¥15,400");
   expect(await obi.locator("li b").count(), "会社名の 字が HTML に なった").toBe(0);
   await expect(obi).toContainText("取り消せなかった入金 2件");
+});
+
+// ── 本番前の 対立役（a97eb05）の 指摘 ──
+async function hirakiNaosu(page) {
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
+  await page.locator('.nav-item[data-scr="payment"]').click();
+  await expect(page.locator("#payBody")).toContainText("明細ある株式会社", { timeout: 20000 });
+}
+
+test("「読めていません」は 開き直して 読めた 後は 出ない（覚えない）・別の 人の 一覧は 出ない", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    YOMENAI.payments = true;
+    modoseNakattaMado(1, [{ month: "2026-05", co: "明細ある株式会社", snap: { paid: 1 } }]);
+  });
+  await expect(page.locator("#payModose")).toContainText("入金を読めていません");
+  await hirakiNaosu(page);
+  await expect(page.locator("#payModose")).toContainText("2026年5月 明細ある株式会社");
+  await expect(page.locator("#payModose")).not.toContainText("入金を読めていません");
+  // 別の 人の 鍵に 在る 一覧は 出さない
+  await page.evaluate(() => {
+    modoseTojiru();
+    localStorage.setItem(
+      "payModose:other",
+      JSON.stringify({ dame: [{ month: "2026-05", co: "他人の会社", snap: { paid: 1 } }] })
+    );
+  });
+  await hirakiNaosu(page);
+  await expect(page.locator("#payModose")).toHaveCount(0);
+});
+
+test("額が 空の 字なら「額が 読めない」・メモの 本文は 覚えない・前の 額に 直った 行は 消える", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    modoseNakattaMado(2, [
+      { month: "2026-04", co: "空の会社", snap: { paid: "", note: "ひみつの メモ" } },
+      { month: "2026-05", co: "明細ある株式会社", snap: { paid: 3000, paidDate: "2026-06-01" } },
+    ]);
+  });
+  const obi = page.locator("#payModose");
+  await expect(obi).toContainText("2026年4月 空の会社：前は 額が 読めない・メモ あり");
+  const oboe = await page.evaluate(() =>
+    Object.keys(localStorage)
+      .filter((k) => k.indexOf("payModose:") === 0)
+      .map((k) => localStorage.getItem(k))
+      .join("\n")
+  );
+  expect(oboe, "メモの 本文を 覚えた").not.toContain("ひみつ");
+  // 明細ある株式会社 を 前の 額（3,000・6/1）に 直す＝その 行は 消える
+  await page.evaluate(() => {
+    PAYMENTS[payKeyFor("2026-05", "明細ある株式会社")] = {
+      paid: 3000,
+      paidDate: "2026-06-01",
+      note: "",
+    };
+    renderPayments();
+  });
+  await expect(obi).not.toContainText("明細ある株式会社");
+  await expect(obi).toContainText("空の会社");
 });

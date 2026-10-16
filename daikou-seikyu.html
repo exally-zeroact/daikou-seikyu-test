@@ -8794,21 +8794,63 @@
         }
         if (!dame.length) return toast("取り消しました");
         toast(
-          snaps.length + "件のうち " + dame.length + "件を戻せませんでした（一覧を出しています）"
+          snaps.length +
+            "件のうち " +
+            dame.length +
+            "件を戻せませんでした（入金の画面に一覧を出しています）"
         );
         modoseNakattaMado(snaps.length, dame, yomenaiNo(["payments"]).length > 0);
       }
       // ★戻せなかった 入金の 一覧★ 2026-10-16（対立役：知らせ 1枚だと 電話で 切れる・直して 保存すると 消える）
       //   入金の 画面の 一覧の 上に「閉じる」まで 残す（窓に すると 直す 窓を 開いた 時に 消える）。
       //   年・月・会社・前の 額・前の 入金日（客が 手で 前に 戻せる 様に）
+      // ★覚える★＝ログインした 人ごと・この 端末（開き直しても 消えない・対立役：訳の 通りに 開き直すと 一覧が 消えた）
       var MODOSE = null;
+      function modoseKagi() {
+        return "payModose:" + String(CURRENT_ACCOUNT || "");
+      }
+      function modoseYomu() {
+        try {
+          var o = JSON.parse(localStorage.getItem(modoseKagi()) || "null");
+          return o && Array.isArray(o.dame) && o.dame.length ? o : null;
+        } catch (e) {
+          return null;
+        }
+      }
+      function modoseKaku() {
+        try {
+          if (MODOSE) localStorage.setItem(modoseKagi(), JSON.stringify(MODOSE));
+          else localStorage.removeItem(modoseKagi());
+        } catch (e) {
+          /* 覚えられない 端末＝この 画面の 間だけ */
+        }
+      }
+      function modoseTojiru() {
+        MODOSE = null;
+        modoseKaku();
+        renderModose();
+      }
+      // ★足す★（2回目に 戻せなかった 時に 1回目の まだ 直していない 行を 消さない・対立役）。
+      //   同じ 月×会社は 最初の 前の 状態を 残す（2回目の 前の 状態は「全入金」の 後の 物）
       function modoseNakattaMado(zen, dame, yomenai) {
-        MODOSE = { zen: zen, dame: dame, yomenai: yomenai };
+        var mae = MODOSE || modoseYomu() || { zen: 0, dame: [] };
+        var aru = {};
+        mae.dame.forEach(function (x) {
+          aru[x.month + " " + x.co] = 1;
+        });
+        dame.forEach(function (x) {
+          if (aru[x.month + " " + x.co]) return;
+          aru[x.month + " " + x.co] = 1;
+          mae.dame.push({ month: x.month, co: x.co, snap: x.snap || null });
+        });
+        MODOSE = { zen: mae.zen + zen, dame: mae.dame, yomenai: !!yomenai };
+        modoseKaku();
         renderModose();
       }
       function renderModose() {
         var body = document.getElementById("payBody");
         if (!body) return;
+        if (!MODOSE) MODOSE = modoseYomu();
         var el = document.getElementById("payModose");
         if (!MODOSE) {
           if (el) el.remove();
@@ -8824,12 +8866,16 @@
           var p = String(m).split("-");
           return Number(p[0]) + "年" + Number(p[1]) + "月";
         };
+        var gaku = function (v) {
+          // 空・null・数で ない＝「額が 読めない」（¥0 と 言わない）
+          return v == null || v === "" || !isFinite(Number(v)) ? "額が 読めない" : yen(Number(v));
+        };
         var gyou = MODOSE.dame
           .map(function (x) {
             var mae = !x.snap
               ? "前は 記録なし（未入金に 戻す）"
               : "前は " +
-                (isFinite(Number(x.snap.paid)) ? yen(Number(x.snap.paid)) : "額が 読めない") +
+                gaku(x.snap.paid) +
                 (x.snap.paidDate ? "・入金日 " + x.snap.paidDate : "") +
                 (x.snap.note ? "・メモ あり" : "");
             return "<li>" + esc(nen(x.month) + " " + x.co) + "：" + esc(mae) + "</li>";
@@ -8838,19 +8884,17 @@
         el.innerHTML =
           '<div class="pay-modose-hd"><b>' +
           esc(
-            MODOSE.zen +
-              "件のうち " +
-              MODOSE.dame.length +
-              "件を前に戻せませんでした（今は「全入金」のまま）"
+            "取り消せなかった入金 " + MODOSE.dame.length + "件（取り消した時は「全入金」のまま）"
           ) +
-          '</b><button type="button" class="btn btn-ghost btn-sm" onclick="MODOSE=null;renderModose();">閉じる</button></div>' +
+          '</b><button type="button" class="btn btn-ghost btn-sm" onclick="modoseTojiru();">閉じる</button></div>' +
           '<ul style="max-height:40vh;overflow:auto;margin:6px 0;padding-left:18px;">' +
           gyou +
           "</ul><div>" +
           esc(
-            MODOSE.yomenai
-              ? "入金を読めていません。画面を開き直して確かめてください。"
-              : "通信を確かめてから、下の一覧で 1件ずつ 前の額に直してください。直し終えたら「閉じる」。"
+            (MODOSE.yomenai
+              ? "入金を読めていません。画面を開き直して確かめてください（開き直しても この一覧は残ります）。"
+              : "通信を確かめてから、下の一覧で 1件ずつ 前の額に直してください。") +
+              "月や状態で絞り込んでいる時は「全期間」に戻すと出ます。直し終えたら「閉じる」。"
           ) +
           "</div>";
       }

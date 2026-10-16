@@ -428,3 +428,66 @@ test("一括の 取り消しの 間に 入金を 読めなく なった＝「画
     timeout: 10000,
   });
 });
+
+// ── 本番前の 対立役（760458d）の 指摘 ──
+async function ikkatsuDeOtosu(page, co, total) {
+  await page.evaluate(
+    async ([co, total]) => {
+      payToggleRow("2026-05", co, total);
+      await bulkMarkPaid();
+    },
+    [co, total]
+  );
+  await expect(page.locator("#toastUndo")).toContainText("全入金にしました");
+  await page.evaluate(() => (window.__FAKE_OFFLINE__ = true));
+  await page.locator("#toastUndo").getByRole("button", { name: "取り消す" }).click();
+  await expect(page.locator("#toast")).toContainText("戻せませんでした", { timeout: 10000 });
+  await page.evaluate(() => (window.__FAKE_OFFLINE__ = false));
+}
+
+test("戻せなかった 一覧は 画面を 開き直しても 残る（訳の 通りに 開き直すと 消えていた）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await ikkatsuDeOtosu(page, "明細ある株式会社", 15400);
+  await expect(page.locator("#payModose")).toContainText("2026年5月 明細ある株式会社");
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
+  await page.locator('.nav-item[data-scr="payment"]').click();
+  await expect(page.locator("#payModose")).toContainText("2026年5月 明細ある株式会社", {
+    timeout: 20000,
+  });
+  await page.locator("#payModose").getByRole("button", { name: "閉じる" }).click();
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
+  await page.locator('.nav-item[data-scr="payment"]').click();
+  await expect(page.locator("#payBody")).toContainText("明細ある株式会社", { timeout: 20000 });
+  await expect(page.locator("#payModose")).toHaveCount(0);
+});
+
+test("2回目に 戻せなかった 物は 1回目の 一覧に 足す（消さない）・字は そのまま・額が 空なら「額が 読めない」", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    modoseNakattaMado(
+      1,
+      [{ month: "2026-04", co: "一回目株式会社", snap: { paid: 1000, paidDate: "2026-05-01" } }],
+      false
+    );
+    modoseNakattaMado(
+      2,
+      [
+        { month: "2026-05", co: "<b>太字</b>株式会社", snap: { paid: null } },
+        { month: "2026-04", co: "一回目株式会社", snap: { paid: 15400 } }, // 同じ 月×会社＝最初の 前の 状態を 残す
+      ],
+      false
+    );
+  });
+  const obi = page.locator("#payModose");
+  await expect(obi).toContainText("2026年4月 一回目株式会社：前は ¥1,000・入金日 2026-05-01");
+  await expect(obi).toContainText("2026年5月 <b>太字</b>株式会社：前は 額が 読めない");
+  await expect(obi).not.toContainText("¥15,400");
+  expect(await obi.locator("li b").count(), "会社名の 字が HTML に なった").toBe(0);
+  await expect(obi).toContainText("取り消せなかった入金 2件");
+});

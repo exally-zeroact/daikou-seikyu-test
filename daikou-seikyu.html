@@ -8526,7 +8526,7 @@
           if (k.indexOf(mae) !== 0) return;
           var r = PAYMENTS[k] || {};
           if (r.uid != null && r.uid !== CURRENT_ACCOUNT) return;
-          if (!(Number(r.paid) > 0 || String(r.note || "").trim() || r.paidDate)) return;
+          if (!nyukinGaMieru(r.paid, r.note, r.paidDate)) return;
           var rest = k.slice(mae.length);
           var i = rest.indexOf("::");
           if (i < 0) return;
@@ -12069,7 +12069,10 @@
       }
       var KAISHA_KIKU_CHU = false; // 会社の 足し・付け替えを 確かめている 間（2回 押しで 2回 訊かない・対立役）
       async function addCompany() {
-        if (KAISHA_KIKU_CHU) return;
+        if (KAISHA_KIKU_CHU) {
+          toast("会社の 記録を 確かめています。少し 待ってから もう一度 押してください。");
+          return;
+        }
         KAISHA_KIKU_CHU = true;
         try {
           await addCompanyHontai();
@@ -12143,6 +12146,10 @@
       // ★残っている 記録と 混ぜるかを 客に 訊く★ 2026-10-16 司さん「確かめを 出す」
       //   消した 会社の 入金・明細・請求番号は 消しても 倉庫に 残る。同じ 名前へ 付け替える・同じ 名前で 足すと、
       //   その 会社の 請求の 額と 入金済みの 見え方が 変わる＝黙って 混ぜない。消した 会社を 戻したい 客の 道は 残す
+      // 入金の 行が 客に 見えるか（額が 0 より 大きい・メモ・入金日の どれか）。入金の 一覧と 混ぜるかの 数で 同じ 判じを 使う
+      function nyukinGaMieru(paid, memo, hi) {
+        return !!(Number(paid) > 0 || String(memo || "").trim() || hi);
+      }
       function mazeruKaKiku(na, nokori) {
         var m = nokori.mieru;
         var kazu = [
@@ -12191,17 +12198,18 @@
           [
             "payments",
             "id",
-            ",deleted_at,paid",
+            ",deleted_at,paid,memo,paid_date",
             function (x) {
-              return !x.deleted_at && Number(x.paid) !== 0;
+              return !x.deleted_at && nyukinGaMieru(x.paid, x.memo, x.paid_date);
             },
           ],
+          // 控えは 読み込みで deleted_at を 見ずに 前の 月の 額の 材料に 入る＝全部 数える
           [
             "invoices",
             "id",
-            ",deleted_at",
-            function (x) {
-              return !x.deleted_at;
+            "",
+            function () {
+              return true;
             },
           ],
         ];
@@ -12254,7 +12262,11 @@
         return await q;
       }
       async function renameCompany(oldName, newName) {
-        if (KAISHA_KIKU_CHU) return;
+        if (KAISHA_KIKU_CHU) {
+          toast("会社の 記録を 確かめています。少し 待ってから もう一度 押してください。");
+          renderMaster();
+          return;
+        }
         KAISHA_KIKU_CHU = true;
         try {
           await renameCompanyHontai(oldName, newName);

@@ -1179,6 +1179,8 @@ test("消した 入金・0円の 入金 だけが 残る 名前へは 訊かな�
         company: "見えない株式会社",
         month: "2026-02",
         paid: 0,
+        paid_date: null, // 入金日・メモが 在ると 入金の 一覧に 出る（見える）＝見えない 0円の 行に する
+        memo: "",
       })
     );
     localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
@@ -1186,4 +1188,83 @@ test("消した 入金・0円の 入金 だけが 残る 名前へは 訊かな�
     return Object.keys(MASTER).includes("見えない株式会社");
   });
   expect({ ok, kiita }).toEqual({ ok: true, kiita: 0 });
+});
+
+for (const [na, ue] of [
+  ["0円で 入金日が 在る", { paid: 0, paid_date: "2026-03-05", memo: "" }],
+  ["0円で メモが 在る", { paid: 0, paid_date: null, memo: "残り" }],
+]) {
+  test("入金の 一覧に 出る 行（" + na + "）だけが 残る 名前へは 訊く", async ({ page }) => {
+    await hiraku(page);
+    let kiita = 0;
+    page.on("dialog", (d) => {
+      kiita++;
+      d.dismiss();
+    });
+    const ok = await page.evaluate(async (ue) => {
+      await markPaidFull("2026-05", "明細ある株式会社", 15400);
+      const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+      const p0 = db.tables.payments.find((x) => x.company === "明細ある株式会社");
+      db.tables.payments.push(
+        Object.assign(
+          {},
+          p0,
+          { id: "p-mieru", company: "見える株式会社", month: "2026-02", deleted_at: null },
+          ue
+        )
+      );
+      localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
+      await renameCompany("明細ある株式会社", "見える株式会社");
+      return Object.keys(MASTER).includes("見える株式会社");
+    }, ue);
+    expect({ ok, kiita }).toEqual({ ok: false, kiita: 1 });
+  });
+}
+
+test("同じ 月の 請求番号が 残る 名前へ 混ぜると 一意で 落ち、訳を 出して 何も 変えない", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await keshitaKaishaWoOku(page, { kiku: "accept" });
+  const shirase = await page.evaluate(async () => {
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+    const n0 = db.tables.invoice_no.find((x) => x.company === "明細ある株式会社");
+    db.tables.invoice_no.push(
+      Object.assign({}, n0, { company: "名前を変えた株式会社", invoice_no: "2026-05-77" })
+    );
+    localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+    return document.body.innerText.includes("同じ 月の 請求番号が 残っているので");
+  });
+  expect(shirase).toBe(true);
+  const d = await kaishaDoko(page);
+  expect({ master: d.master, aPay: d.aPay, aMeisai: d.aMeisai }).toEqual({
+    master: true,
+    aPay: ["明細ある株式会社"],
+    aMeisai: ["明細ある株式会社"],
+  });
+});
+
+test("同じ 月の 入金が 残る 名前へ 混ぜると 一意で 落ち、元に 戻して 訳を 出す", async ({
+  page,
+}) => {
+  await hiraku(page);
+  await keshitaKaishaWoOku(page, { kiku: "accept" });
+  const shirase = await page.evaluate(async () => {
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+    const p0 = db.tables.payments.find((x) => x.company === "明細ある株式会社");
+    db.tables.payments.push(
+      Object.assign({}, p0, { id: "p-onaji", company: "名前を変えた株式会社" })
+    );
+    localStorage.setItem("__fake_supa_db__", JSON.stringify(db));
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+    return document.body.innerText.includes("同じ 月の 入金・明細が 残っているので");
+  });
+  expect(shirase).toBe(true);
+  const d = await kaishaDoko(page);
+  expect({ master: d.master, aMeisai: d.aMeisai, aBangou: d.aBangou }).toEqual({
+    master: true,
+    aMeisai: ["明細ある株式会社"],
+    aBangou: ["明細ある株式会社"],
+  });
 });

@@ -2808,7 +2808,12 @@
         transition: all 0.25s;
         z-index: 200;
         pointer-events: none;
-        white-space: nowrap;
+        /* 長い 知らせは 折り返す（電話の 幅で 頭と 終わりが 画面の 外に 切れた・対立役 2026-10-16） */
+        white-space: normal;
+        width: max-content;
+        max-width: calc(100vw - 32px);
+        text-align: center;
+        line-height: 1.5;
       }
       .toast.show {
         opacity: 1;
@@ -8773,19 +8778,31 @@
         var dame = [];
         for (var i = 0; i < snaps.length; i++) {
           var ok = await undoPayState(snaps[i].month, snaps[i].co, snaps[i].snap, true);
-          if (!ok) dame.push(snaps[i].co);
+          if (!ok) {
+            // どの 月の どの 会社が 何に 戻るはずだったか（客が 手で 直せる 様に）
+            var mm = Number(String(snaps[i].month).split("-")[1]) || "";
+            var mae = snaps[i].snap
+              ? "前は " + yen(Number(snaps[i].snap.paid) || 0)
+              : "前は 記録なし";
+            dame.push(mm + "月 " + snaps[i].co + "（" + mae + "）");
+          }
         }
-        if (dame.length)
+        if (dame.length) {
+          // 訳も 書く（読めていない 時は 開き直す・通信なら この 画面で 前の 額に 直す）
+          var yomenai = yomenaiNo(["payments"]).length > 0;
           toast(
             snaps.length +
               "件のうち " +
               dame.length +
-              "件を戻せませんでした（" +
+              "件を戻せませんでした：" +
               dame.join("、") +
-              "）。入金の画面で確かめてください。",
-            8000
+              "。" +
+              (yomenai
+                ? "入金を読めていません。画面を開き直して確かめてください。"
+                : "通信を確かめてから、入金の画面で前の額に直してください。"),
+            12000
           );
-        else toast("取り消しました");
+        } else toast("取り消しました");
       }
       function openPayEdit(month, co) {
         var iv = seikyuList(month, { kieta: true }).filter(function (x) {

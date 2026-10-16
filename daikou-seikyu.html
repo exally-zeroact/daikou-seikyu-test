@@ -8846,9 +8846,11 @@
         var m = y !== undefined && MODOSE_KAKETA ? y : MODOSE;
         if (!m || !m.dame) return;
         var kaeta = false;
+        var ima = new Date().toISOString();
         m.dame.forEach(function (x) {
           if (x.co === oldName) {
             x.co = newName;
+            x.at = ima; // 付け替えた 時刻＝これより 前に 入金を 読んだ タブは 判じない
             kaeta = true;
           }
         });
@@ -12143,10 +12145,16 @@
             u1 && !u1.error
               ? await SB.from("meisai").update({ company: oldName }).eq("company", newName)
               : null;
-          if ((m0 && m0.error) || (m1 && m1.error)) {
-            // ★戻しも 落ちた＝台帳・明細の 名前が 割れて いる★（黙らない・対立役）
+          // 入金が 付け替わっていたら 入金も 戻す 2026-10-16（対立役：倉庫の 入金だけ 新しい 名前に 残り、
+          //   開き直すと 古い 名前の 帯の 行が「記録なし＝直った」と 消えた）
+          var m2 =
+            u2 && !u2.error
+              ? await SB.from("payments").update({ company: oldName }).eq("company", newName)
+              : null;
+          if ((m0 && m0.error) || (m1 && m1.error) || (m2 && m2.error)) {
+            // ★戻しも 落ちた＝台帳・明細・入金の 名前が 割れて いる★（黙らない・対立役）
             toast(
-              "会社名の 変更が 途中で 止まり、元に 戻せませんでした（請求番号の 台帳・明細の 一部が「" +
+              "会社名の 変更が 途中で 止まり、元に 戻せませんでした（請求番号の 台帳・明細・入金の 一部が「" +
                 newName +
                 "」の まま）。請求書を 出す 前に 画面を 開き直し、もう一度「" +
                 newName +

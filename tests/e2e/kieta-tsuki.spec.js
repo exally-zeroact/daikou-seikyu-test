@@ -692,3 +692,60 @@ test("日時が 読めない 行は「直った」と 判じない（分から�
   });
   expect(nokori).toBe(1);
 });
+
+// ── 本番前の 対立役（bc63963）の 指摘 ──
+test("別の タブで 会社名を 変えても、古い タブは 付け替えた 行を「直った」と 消さない", async ({
+  context,
+}) => {
+  const a = await context.newPage();
+  await hiraku(a);
+  await a.evaluate(async () => {
+    await markPaidFull("2026-05", "明細ある株式会社", 15400);
+    modoseNakattaMado(1, [{ month: "2026-05", co: "明細ある株式会社", snap: null }]);
+  });
+  const b = await context.newPage();
+  await hiraku(b);
+  await a.evaluate(async () => {
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+  });
+  const nokori = await b.evaluate(() => {
+    renderPayments();
+    const o = JSON.parse(localStorage.getItem("payModose:" + CURRENT_ACCOUNT) || "null");
+    return o ? o.dame.map((x) => x.co) : [];
+  });
+  expect(nokori, "古い タブが 付け替えた 行を 消した").toEqual(["名前を変えた株式会社"]);
+});
+
+test("明細の 付け替えだけ 落ちた＝入金も 元の 名前に 戻す（倉庫の 入金だけ 新しい 名前に 残さない）", async ({
+  page,
+}) => {
+  await hiraku(page);
+  const kaisha = await page.evaluate(async () => {
+    await markPaidFull("2026-05", "明細ある株式会社", 15400);
+    window.__FAKE_FAIL_WRITES__ = ["meisai"];
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+    window.__FAKE_FAIL_WRITES__ = [];
+    const db = JSON.parse(localStorage.getItem("__fake_supa_db__"));
+    // 偽の倉庫には 前から 別の 会社の 入金も 在る＝付け替えに 関わる 2つの 名前だけ 見る
+    return db.tables.payments
+      .filter((r) => !r.deleted_at && r.paid > 0)
+      .map((r) => r.company)
+      .filter((c) => c === "明細ある株式会社" || c === "名前を変えた株式会社");
+  });
+  expect(kaisha).toEqual(["明細ある株式会社"]);
+});
+
+test("会社名の 付け替えで 関係ない 会社の 帯の 行の 名前は 変えない", async ({ page }) => {
+  await hiraku(page);
+  const na = await page.evaluate(async () => {
+    await markPaidFull("2026-05", "明細ある株式会社", 15400);
+    modoseNakattaMado(2, [
+      { month: "2026-05", co: "明細ある株式会社", snap: null },
+      { month: "2026-04", co: "関係ない会社", snap: { paid: 1 } },
+    ]);
+    await renameCompany("明細ある株式会社", "名前を変えた株式会社");
+    const o = JSON.parse(localStorage.getItem("payModose:" + CURRENT_ACCOUNT) || "null");
+    return o ? o.dame.map((x) => x.co).sort() : [];
+  });
+  expect(na).toEqual(["名前を変えた株式会社", "関係ない会社"].sort());
+});

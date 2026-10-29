@@ -6,7 +6,7 @@ import path from "node:path";
 // ★登録番号が無い／形が違う紙を出させない★ 2026-08-11
 //
 //   ★実測した事（直す前）★
-//     登録番号の行を消して「PDFで保存」を押すと
+//     登録番号の行を消して「印刷 / 送る」を押すと
 //       ボタンは押せる／警告なし／「PDFを作成しました」／3MBのPDFが出る
 //       出たPDFに「登録番号」0行・T+13桁 0行
 //     ＝★適格請求書の要件を満たさない紙が 何も言われずに出る★（年1,300通）
@@ -19,7 +19,7 @@ import path from "node:path";
 //     ・★今 入っている自社情報が1文字も消えない★（専用の欄に移しても紙は同じ）
 //
 //   ★押す物の一覧（先に書く）★
-//     1. 下のナビ「請求」 2. 月 3. 会社 4.「📄 PDFで保存 / 送る」5.「📊 Excelに書き出し」
+//     1. 下のナビ「請求」 2. 月 3. 会社 4.「📄 印刷 / 送る」5.「📊 Excelに書き出し」
 // ============================================================
 
 const OUT = process.env.REGNO_OUT || path.join("test-results", "regno");
@@ -80,6 +80,10 @@ function seed(issuerText) {
 async function open(page, issuerText) {
   await page.route(/cdn\.jsdelivr\.net/, (r) => r.abort());
   await page.addInitScript({ path: "tests/e2e/fake-supabase.js" });
+  // ★「印刷 / 送る」は PC だと 新しい 窓で 開く★ 2026-10-29＝PDF の 中身を 見る 為 窓を 止めた 形（保存に 落ちる）で 回す
+  await page.addInitScript(() => {
+    window.open = () => null;
+  });
   await page.addInitScript(seed, issuerText);
   await page.goto("/daikou-seikyu.html", { waitUntil: "load" });
   await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
@@ -101,10 +105,10 @@ test("★形の判定★ 空・T無し・桁違い・全角 を弾き、正し�
       "T が無い": T("9000000000009"),
       "12桁": T("T900000000000"),
       "14桁": T("T90000000000091"),
-      "全角のT": T("Ｔ9000000000009"),
-      "全角の数字": T("T９０００００００００００９"),
-      "前後に空白": T("  T9000000000009  "),
-      "小文字t": T("t9000000000009"),
+      全角のT: T("Ｔ9000000000009"),
+      全角の数字: T("T９０００００００００００９"),
+      前後に空白: T("  T9000000000009  "),
+      小文字t: T("t9000000000009"),
     };
   });
   expect(r).toEqual({
@@ -114,10 +118,10 @@ test("★形の判定★ 空・T無し・桁違い・全角 を弾き、正し�
     "T が無い": "弾く",
     "12桁": "弾く",
     "14桁": "弾く",
-    "全角のT": "弾く",
-    "全角の数字": "弾く",
-    "前後に空白": "通す", // 前後の空白は落として見る
-    "小文字t": "弾く",
+    全角のT: "弾く",
+    全角の数字: "弾く",
+    前後に空白: "通す", // 前後の空白は落として見る
+    小文字t: "弾く",
   });
 });
 
@@ -125,11 +129,9 @@ test("★登録番号が無いと 紙を出させない（押させない＋理�
   const naiIssuer = HONBAN_ISSUER.split("\n").slice(0, 5).join("\n"); // 登録番号の行だけ消す
   await open(page, naiIssuer);
 
-  const pdf = page.getByRole("button", { name: /PDFで保存/ });
-  const print = page.getByRole("button", { name: /印刷/ });
+  const pdf = page.getByRole("button", { name: /印刷 \/ 送る/ });
   const excel = page.getByRole("button", { name: /Excelに書き出し/ });
   await expect(pdf, "★PDFのボタンが押せてしまう★").toBeDisabled();
-  await expect(print, "★印刷のボタンが押せてしまう★").toBeDisabled();
   await expect(excel, "★Excelのボタンが押せてしまう★").toBeDisabled();
 
   // ★理由が読める形で出ている（どこで入れるかまで）★
@@ -157,8 +159,13 @@ test("★正しければ今までどおり出て、出た紙の中に T+13桁が
   fs.mkdirSync(OUT, { recursive: true });
   await open(page, HONBAN_ISSUER);
 
-  const pdf = page.getByRole("button", { name: /PDFで保存/ });
+  const pdf = page.getByRole("button", { name: /印刷 \/ 送る/ });
   await expect(pdf).toBeEnabled();
+  // ★印刷と 送るは ボタン 1つ★ 2026-10-29（司さん「同じ画面が開かれるんやけん1つのボタンにして印刷/送るにまとめろ」）
+  //   わざと壊す：「🖨 印刷」の ボタンを 戻す ⇒ ★赤★（2つに なる）
+  await expect(page.locator(".invoice-actions").getByRole("button", { name: /印刷/ })).toHaveCount(
+    1
+  );
   await expect(page.locator("#regnoWarn")).toBeHidden();
 
   const dl = page.waitForEvent("download", { timeout: 120000 });
@@ -190,7 +197,8 @@ test("★専用の欄に移しても 自社情報は1文字も消えない★", 
 
   expect(r.regno, "登録番号が専用の欄に移っていない").toBe("T9000000000009");
   // ★紙に出る行は 元と1行も違わない★
-  expect(r.ima, "★紙の行が変わった★\n元: " + r.moto.join(" / ") + "\n今: " + r.ima.join(" / ")).toEqual(
-    r.moto
-  );
+  expect(
+    r.ima,
+    "★紙の行が変わった★\n元: " + r.moto.join(" / ") + "\n今: " + r.ima.join(" / ")
+  ).toEqual(r.moto);
 });

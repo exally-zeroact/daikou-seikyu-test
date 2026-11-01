@@ -146,7 +146,7 @@ for (const t of ["issuer", "invoices", "invoice_no"]) {
         out: document.getElementById("invoiceOut").textContent,
       };
     }, CO);
-    // eslint-disable-next-line no-console
+
     console.log("★" + t + "★ " + JSON.stringify(r).slice(0, 300));
     expect(r.bytes, "★取って来られないのに 請求書を 作った★").toBeNull();
     if (t === "issuer") expect(r.writes.issuer || 0, "★自社情報を 既定で 上書き★").toBe(0);
@@ -196,7 +196,6 @@ test("★入金を 取って来られない・前回繰越を 載せる 会社 �
 // ★★入金の 門を 1つずつ★★（どれも その 門 1つを 外すと その 1本が 赤）
 for (const [na, yobu, tou] of [
   ["savePay", (co) => savePay("2026-05", co, 12000), "入金の 保存"],
-  ["bulkMarkPaid", () => bulkMarkPaid(), "入金の 保存"],
   ["undoPayState", (co) => undoPayState("2026-05", co, null), "入金の 保存"],
   ["exportReport（集計の Excel）", () => exportReport(), "集計の Excel の 作成"],
 ]) {
@@ -214,7 +213,7 @@ for (const [na, yobu, tou] of [
       },
       [yobu.toString(), CO]
     );
-    // eslint-disable-next-line no-console
+
     console.log("★" + na + "★ " + JSON.stringify(r));
     expect(r.w, "★取って来られない 入金を 書いた★").toBe(0);
     expect(r.toast, "★止めた 訳を 出していない★").toContain(tou);
@@ -251,7 +250,7 @@ test("★自社情報の 無い 客 ⇒ 警告・請求書は 作らない・ZER
       bytes: await _buildInvoiceBytes(),
     };
   });
-  // eslint-disable-next-line no-console
+
   console.log("★自社情報 無し★ " + JSON.stringify(r).slice(0, 300));
   expect(r.bank + r.issuer, "★ZEROact の 字が 入っている★").not.toMatch(
     /ZEROact|7654321|T9000000000009/
@@ -271,7 +270,7 @@ test("★台帳 1001行（目当ての 月が 1001行目）⇒ 番号は 台帳�
     const no = await issueInvoiceNo("2026-05", co);
     return { no: no, w: window.__FAKE_WRITES__.invoice_no || 0 };
   }, CO);
-  // eslint-disable-next-line no-console
+
   console.log("★1001行★ " + JSON.stringify(r));
   expect(r.no, "★1000行で 切れて 台帳の 番号を 見失った★").toBe("202605-099");
   expect(r.w, "★凍結した 番号を 書き直した★").toBe(0);

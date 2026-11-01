@@ -87,7 +87,9 @@ function seed() {
   );
 }
 
-test("★繰越の 会社は まとめた 入金を 古い 月から 当てる／使わない 会社は 今まで通り★", async ({ page }) => {
+test("★繰越の 会社は まとめた 入金を 古い 月から 当てる／使わない 会社は 今まで通り★", async ({
+  page,
+}) => {
   await page.route(/cdn\.jsdelivr\.net/, (r) => r.abort());
   await page.addInitScript({ path: "tests/e2e/fake-supabase.js" });
   await page.addInitScript(seed);
@@ -111,7 +113,10 @@ test("★繰越の 会社は まとめた 入金を 古い 月から 当てる�
   const pd = (m, c) => (jou.find((x) => x.m === m && x.c === c) || {}).paid;
 
   // ★繰越を 使う 会社★
-  expect(st("2026-05", KURI), "★繰越の 会社：5月が 入金済に ならない（古い 月から 当てていない）★").toBe("paid");
+  expect(
+    st("2026-05", KURI),
+    "★繰越の 会社：5月が 入金済に ならない（古い 月から 当てていない）★"
+  ).toBe("paid");
   expect(st("2026-06", KURI)).toBe("paid");
   expect(pd("2026-05", KURI)).toBe(10000);
   expect(pd("2026-06", KURI)).toBe(10000);
@@ -207,7 +212,60 @@ test("★当てた 後も 窓・Excel・一括入金で 記録が 消えない�
     ["2026-06", "繰越工業株式会社", 20000], // 15,000 ＋ 残り 5,000
   ]);
   const ato = await page.evaluate(() =>
-    summarize(null, "").rows.filter((x) => x.company === "繰越工業株式会社").map((x) => x.st)
+    summarize(null, "")
+      .rows.filter((x) => x.company === "繰越工業株式会社")
+      .map((x) => x.st)
   );
   expect(ato).toEqual(["paid", "paid"]);
+});
+
+// ★★行の「全入金」（1件）でも 記録を 消さない★★ 2026-11-01（対立役：一括だけ 直してあり 1件の 側は 請求額で 上書き）
+//   5月 10,000・6月 10,000・6月に 15,000 記録 ⇒ 6月は「一部 5,000」。
+//   ★前★ 6月の 行の「全入金」⇒ 記録 15,000 が 10,000 に 上書き ⇒ 当て直すと 6月が「未入金」（押したのに）。
+//   ★今★ 一括と 同じ「記録 ＋ 足りない 額」⇒ 記録 20,000・5月 6月とも 入金済。
+//   ★画面の ボタンを 本当に 押す★（関数を 直に 呼ばない）。取り消すと 15,000 に 戻る。
+test("★行の「全入金」でも 繰越の 会社の 記録が 消えない・取り消すと 前の 額に 戻る★", async ({
+  page,
+}) => {
+  await page.route(/cdn\.jsdelivr\.net/, (r) => r.abort());
+  await page.addInitScript({ path: "tests/e2e/fake-supabase.js" });
+  await page.addInitScript(seed);
+  await page.addInitScript(seed15);
+  await page.goto("/daikou-seikyu.html", { waitUntil: "load" });
+  await expect(page.locator("#scr-input")).toBeVisible({ timeout: 20000 });
+  await page.locator('.nav-item[data-scr="payment"]').click();
+  await expect(page.locator("#scr-payment")).toBeVisible();
+
+  const gyou = page.locator(".pay-item").filter({ hasText: KURI }).filter({ hasText: "2026年6月" });
+  await expect(gyou).toHaveCount(1);
+  await gyou.locator(".pay-full-btn").click();
+  await expect(page.locator(".toast-undo")).toContainText("全入金にしました");
+
+  const kiroku = () =>
+    page.evaluate(
+      (co) =>
+        JSON.parse(localStorage.getItem("__fake_supa_db__"))
+          .tables.payments.filter((p) => p.company === co && !p.deleted_at)
+          .map((p) => [p.month, p.paid])
+          .sort(),
+      KURI
+    );
+  expect(await kiroku(), "★行の 全入金で 記録が 上書きされて 消えた★").toEqual([
+    ["2026-06", 20000],
+  ]);
+  const ato = await page.evaluate(
+    (co) =>
+      summarize(null, "")
+        .rows.filter((x) => x.company === co)
+        .map((x) => [x.month, x.st])
+        .sort(),
+    KURI
+  );
+  expect(ato).toEqual([
+    ["2026-05", "paid"],
+    ["2026-06", "paid"],
+  ]);
+
+  await page.locator(".toast-undo button").first().click();
+  await expect.poll(kiroku).toEqual([["2026-06", 15000]]);
 });

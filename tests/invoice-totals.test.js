@@ -54,7 +54,7 @@ describe("★合計の式（内税10%）★", () => {
     expect(t.zei, "★行ごとに丸めて足している（10+10=20 になっている）★").toBe(19); // 2100/110=19.09→19
   });
 
-  it("外税（会社マスタの taxMode=\"外税\"）は 税抜×率 を足す", () => {
+  it('外税（会社マスタの taxMode="外税"）は 税抜×率 を足す', () => {
     const t = Engine.invoiceTotals(rows(1000), { taxMode: "外税" });
     expect(t.shoukei).toBe(1000);
     expect(t.zei).toBe(100);
@@ -81,14 +81,17 @@ describe("★合計の式（内税10%）★", () => {
   });
 
   it("★会社ごとの言い換えが 上に被さる★", () => {
-    const L = Engine.totalsLabels({ labels: { 消費税: "税", 今回お支払額: "お振込み額" } }, {});
+    const L = Engine.totalsLabels({ labels: { 消費税: "税", 今回ご請求額: "お振込み額" } }, {});
     expect(L.消費税).toBe("税");
-    expect(L.今回お支払額).toBe("お振込み額");
+    expect(L.今回ご請求額).toBe("お振込み額");
     expect(L.小計, "言い換えていない物まで変わっている").toBe("小計");
   });
 
   it("金額が空・文字でも落ちない（0として足す）", () => {
-    const t = Engine.invoiceTotals([{ 金額: "" }, { 金額: null }, { 金額: "あ" }, { 金額: 100 }], {});
+    const t = Engine.invoiceTotals(
+      [{ 金額: "" }, { 金額: null }, { 金額: "あ" }, { 金額: 100 }],
+      {}
+    );
     expect(t.shoukei).toBe(100);
   });
 });

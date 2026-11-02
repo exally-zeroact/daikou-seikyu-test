@@ -66,17 +66,19 @@
      ★文言は様式ごとに違う（エレガント=消費税（10%）／クラシック=消費税（10%・内税））ので
        ここでは数字だけを返し、見出しは今までどおり各様式が持つ＝紙は1文字も変わらない。★ */
   /* ★繰越（会社ごとに選べる）★ 2026-08-11
-     並べる順（指示役 2026-08-11 が決めた形）:
-       今回請求額 → ＋前回繰越額 → 合計請求額 → −ご入金額 → 今回お支払額
-     ・★前回繰越額★ ＝ 当月より前の（請求 − 入金）の残り（＝まだ入っていない分）
-     ・★ご入金額★   ＝ 当月ぶんとして受け取った入金
-       ⇒ 前回繰越は過去の入金を引いた後の数なので ★二重に引かない★
+     並べる順（2026-11-02 司さん「それでやれ」＝MF・弥生の 5項目。前の「今回お支払額」の 形は やめた）:
+       合計（今月分）→ 前回ご請求額 → −ご入金額 → 繰越金額 → 今回ご請求額
+     ・★前回ご請求額★ ＝ 前の 月の 紙の 今回ご請求額
+     ・★ご入金額★     ＝ 前回の 請求書（前の 月の 行）に 記録した 入金。★その 月への 入金は 載せない★
+     ・★繰越金額★     ＝ 当月より前の（請求 − 入金）の残り
+     ・★今回ご請求額★ ＝ 繰越金額 ＋ 今月分（＝紙の 上の 大きい 額）
+     ・入金は「払ってもらった 請求書の 月の 行」に 記録する（司さん 2026-11-02）
      ★0円と書かない★（指示役の合格条件）
        前回の請求が1件も無い     → kurikoshi=null・riyu="前回の請求はありません"
        入金が読めない（不明）    → nyukin=null・riyu に "入金は未確認"
        ＝「無い」と「0円」は別物。0円と書くと 払い忘れと区別が付かなくなる。
      kako = [{ month, seikyu, nyukin }]  seikyu/nyukin が null なら「不明」 */
-  function carryoverOf(kako, konkaiSeikyu, konkaiNyukin) {
+  function carryoverOf(kako, konkaiSeikyu) {
     var mae = (kako || []).filter(function (k) {
       return k && k.month;
     });
@@ -102,16 +104,19 @@
       }, 0);
     }
     var konkai = Number(konkaiSeikyu) || 0;
-    var nyukin = konkaiNyukin == null ? null : Number(konkaiNyukin) || 0;
-    if (konkaiNyukin == null) riyu.push("入金は未確認");
-    var goukeiSeikyu = kurikoshi == null ? null : konkai + kurikoshi;
-    var oshiharai = goukeiSeikyu == null || nyukin == null ? null : goukeiSeikyu - nyukin;
+    // ★その 月の 紙に その 月への 入金は 載せない★ 2026-11-02（司さん「それでやれ」＝MF・弥生の 5項目）
+    //   ご入金額＝前回の 請求書（kako の 最後の 月の 行）への 入金。その 月の 入金は 次の 月の 紙に 載る。
+    //   ⇒ 払い終えた 後に 出し直しても 紙は 1円も 変わらない（前は 上が ¥0・払い過ぎで マイナス）
+    var last = mae.length ? mae[mae.length - 1] : null;
+    var nyukin = kurikoshi == null || !last ? null : Number(last.nyukin) || 0;
+    var maeSeikyu = kurikoshi == null ? null : kurikoshi + nyukin; // ＝前の 月の 紙の 今回ご請求額
+    var seikyuGaku = kurikoshi == null ? null : kurikoshi + konkai;
     return {
-      konkai: konkai, // 今回請求額
-      kurikoshi: kurikoshi, // 前回繰越額（null＝出せない）
-      goukeiSeikyu: goukeiSeikyu, // 合計請求額
-      nyukin: nyukin, // ご入金額（null＝未確認）
-      oshiharai: oshiharai, // 今回お支払額（null＝出せない）
+      konkai: konkai, // 今月分（＝合計）
+      maeSeikyu: maeSeikyu, // 前回ご請求額（null＝出せない）
+      nyukin: nyukin, // ご入金額＝前回の 請求書への 入金（null＝出せない）
+      kurikoshi: kurikoshi, // 繰越金額＝前回ご請求額 − ご入金額（null＝出せない）
+      seikyuGaku: seikyuGaku, // 今回ご請求額＝繰越金額 ＋ 今月分（null＝出せない）
       riyu: riyu.filter(function (x, i, a) {
         return a.indexOf(x) === i;
       }),
@@ -119,13 +124,20 @@
   }
 
   /* ★紙の 上の 大きい「御請求金額（税込）」の 額★ 2026-11-01（司さん「それでやれ」）
-       繰越を 使う 会社は 今回お支払額（前回繰越＋今回−ご入金）＝相手が 実際に 払う 額。
-       前は その 月の 額だけ ⇒ 下の「今回お支払額」と 2つの 額が 刷られ、上だけ 振り込まれる おそれ。
-       繰越を 使わない 会社（carry が 無い）と、今回お支払額が 出せない 月（前回の 請求が 無い 等）は 今まで 通り その 月の 合計。
+       繰越を 使う 会社は 今回ご請求額（繰越金額＋今月分）＝相手が 払う 額（2026-11-02 から。前は 今回お支払額＝払い終えると ¥0）。
+       繰越を 使わない 会社（carry が 無い）と、今回ご請求額が 出せない 月（前回の 請求が 無い 等）は 今まで 通り その 月の 合計。
        紙（invoice-pdf.js の 2つの 型）と Excel が この 1本を 呼ぶ */
   function ueNoGaku(goukei, carry) {
-    return carry && carry.oshiharai != null ? carry.oshiharai : goukei;
+    // ★!= null で 見る★（0 を 今月分に 化けさせない＝上と 下で 2つの 額を 刷らない）
+    return carry && carry.seikyuGaku != null ? carry.seikyuGaku : goukei;
   }
+  /* ★繰越の 額の 字★ 2026-11-02 マイナスは ▲（紙・Excel の 上の 額と 繰越の 行は ここ 1本） */
+  function sankakuYen(n) {
+    var v = Math.round(Number(n) || 0);
+    var ji = Math.abs(v).toLocaleString("ja-JP"); // 紙の yen() と 同じ 区切り
+    return (v < 0 ? "▲¥" : "¥") + ji;
+  }
+  var SASHIHIKI_JI = "▲の額は次回のご請求から差し引きます";
 
   function invoiceTotals(rows, iss) {
     var grand = (rows || []).reduce(function (t, r) {
@@ -160,10 +172,10 @@
       小計: "小計",
       消費税: "消費税（" + TAX_RATE + "%・" + (soto ? "外税" : "内税") + "）",
       合計: "合計",
-      前回繰越額: "前回繰越額",
-      合計請求額: "合計請求額",
+      前回ご請求額: "前回ご請求額",
       ご入金額: "ご入金額",
-      今回お支払額: "今回お支払額",
+      繰越金額: "繰越金額",
+      今回ご請求額: "今回ご請求額",
     };
     var L = (m && m.labels) || {};
     Object.keys(kihon).forEach(function (k) {
@@ -701,6 +713,8 @@
     invoiceTotals: invoiceTotals, // ★合計を足すのはここだけ★
     carryoverOf: carryoverOf, // ★繰越もここだけ★
     ueNoGaku: ueNoGaku, // ★紙の 上の 大きい 額も ここだけ★
+    sankakuYen: sankakuYen, // ★繰越の 額の 字（▲）も ここだけ★
+    SASHIHIKI_JI: SASHIHIKI_JI,
     totalsLabels: totalsLabels, // ★合計欄の言葉もここだけ★
     TAX_RATE: TAX_RATE,
     listInvoices: listInvoices,

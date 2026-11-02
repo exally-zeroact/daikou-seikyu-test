@@ -127,10 +127,10 @@ function seed(opt) {
           {
             id: "p1",
             user_id: uid,
-            month: "2026-05",
+            month: opt.kyuu ? "2026-06" : "2026-05", // kyuu＝前の 作りの 置き方（受け取った 月の 行）
             company: "繰越あり社",
             paid: opt.mayPaid || 20000,
-            paid_date: "2026-06-20",
+            paid_date: opt.hiNashi ? null : "2026-06-20",
             memo: "",
             created_at: "2026-06-20T00:00:00.000Z",
             deleted_at: null,
@@ -146,7 +146,7 @@ function seed(opt) {
             created_at: "2026-07-20T00:00:00.000Z",
             deleted_at: null,
           },
-        ],
+        ].filter((p) => !(opt.kyuu && p.id === "p2")), // kyuu は 6月の 行が p1 と ぶつかるので 外す
       },
     })
   );
@@ -286,6 +286,30 @@ for (const design of ["elegant", "classic"]) {
     }
   );
 }
+// ★前の 作りの 置き方（5月分を 6月に 受け取り、6月の 行に 記録）でも 二重に 請求しない★ 2026-11-02
+//   司さん「そんなことにならんようにしろ」＝入金は 入金日の 月で 数える（行で 数えると 6月の 紙が 49,200）
+//   入金日が 空の 時は 記録を 作った 日（6/20）で 数える
+for (const hiNashi of [false, true]) {
+  test(
+    "★受け取った 月の 行の 記録でも 6月の 紙は 29,200（入金日" +
+      (hiNashi ? "なし" : "あり") +
+      "）★",
+    async ({ page }) => {
+      const t = await kami(page, "繰越あり社", "2026-06", {
+        carry: true,
+        copy: true,
+        kyuu: true,
+        hiNashi,
+        tag: "kyuu" + (hiNashi ? "-hinashi" : ""),
+      });
+      const j = t.join(" / ");
+      expect(ueNoGaku(t), "★二重に 請求した★ " + j).toBe("¥29,200");
+      expect(j, "★二重に 請求した★").not.toContain("49,200");
+      expect(t).toContain("▲¥20,000");
+    }
+  );
+}
+
 test("★払い過ぎで ない 月は ▲の 説明を 刷らない★", async ({ page }) => {
   const t = await kami(page, "繰越あり社", "2026-06", {
     carry: true,
@@ -470,10 +494,18 @@ test("★プレビュー：入金を 記録して 請求に 戻ると 上の 御
         ).paid,
       m
     );
-  // ① 5月の 行の「全入金」（5月の 紙 37,200 まで）＝★6月の 紙の 繰越が 0 に なり 上は 12,000★
+  // ① 5月の 請求書の 残りが 6月の 中に 入った（窓で 入金日 6/10・37,200）＝★6月の 紙の 繰越が 0 に なり 上は 12,000★
   //    ★わざと壊して 赤★ プレビューの 控えの 鍵（_issFp の cy）から 繰越を 外す ⇒ 古い ¥29,200 の まま
-  //    （5月を 先に 押す＝6月を 先に 払うと 古い 月から 当てる 一覧で 5月も 入金済に なり 5月の ボタンが 消える）
-  await zennyukin("2026年5月", "¥37,200");
+  //    （行の「全入金」は 今日の 日付で 記録する＝6月の 紙には 効かない。ボタンの 額だけ 見る）
+  await expect(
+    page
+      .locator(".pay-item")
+      .filter({ hasText: "繰越あり社" })
+      .filter({ hasText: "2026年5月" })
+      .locator(".pay-full-btn"),
+    "★全入金の ボタンに 記録する 額が 無い★"
+  ).toContainText("記録 ¥32,200"); // 手で 計算：5月の 記録 20,000 ＋（5月までの 請求 37,200 − 記録 全部 25,000）
+  await madoKiroku(page, "2026年5月", 37200, "2026-06-10");
   expect(await kiroku("2026-05")).toBe(37200);
   await page.locator('.nav-item[data-scr="billing"]').click();
   const ato = await preUe(page, "繰越あり社", "2026-06");
@@ -492,6 +524,20 @@ test("★プレビュー：入金を 記録して 請求に 戻ると 上の 御
   expect(harai.ue, "★払い終えたら 6月の 紙の 上が 変わった★\n" + harai.j).toBe("¥12,000");
   expect(harai.j, "★紙が 変わった★").toBe(ato.j);
 });
+
+// ★入金の 窓で 額と 入金日を 入れて 保存する（行を 押す＝窓・画面の ボタンを 本当に 押す）★
+async function madoKiroku(page, tsuki, gaku, hi) {
+  await page
+    .locator(".pay-item")
+    .filter({ hasText: "繰越あり社" })
+    .filter({ hasText: tsuki })
+    .click();
+  await expect(page.locator("#pay_amt")).toBeVisible();
+  await page.fill("#pay_amt", String(gaku));
+  await page.fill("#pay_date", hi);
+  await page.locator("#modalBody").getByRole("button", { name: "保存" }).click();
+  await expect(page.locator(".toast").last()).toContainText("入金を記録しました");
+}
 
 // ★全社まとめの プレビューも 同じ★（対立役 注1 2026-11-02：全社の 鍵の 足しを 外すと 上の 1社の 試験は 緑の まま）
 //   ★わざと壊して 赤★ 全社の 鍵（"0|" の sig）から 会社ごとの _carryFor を 外す ⇒ この 1本だけ 赤
@@ -514,16 +560,10 @@ test("★プレビュー（全社まとめ）：入金を 記録して 戻ると
   expect(mae.n, "★全社まとめに 3社 の 紙が 無い★").toBeGreaterThanOrEqual(3);
   expect(mae.ue, "★入金の 前の 上が 29,200 で ない★\n" + mae.j).toBe("¥29,200");
 
-  // 5月の 行の「全入金」＝5月の 紙 37,200 まで ⇒ 6月の 繰越 0・上は 12,000
+  // 5月の 請求書の 残りが 6月の 中に 入った（窓で 入金日 6/10・37,200）⇒ 6月の 繰越 0・上は 12,000
   await page.locator('.nav-item[data-scr="payment"]').click();
   await expect(page.locator("#scr-payment")).toBeVisible();
-  await page
-    .locator(".pay-item")
-    .filter({ hasText: "繰越あり社" })
-    .filter({ hasText: "2026年5月" })
-    .locator(".pay-full-btn")
-    .click();
-  await expect(page.locator(".toast-undo")).toContainText("全入金にしました");
+  await madoKiroku(page, "2026年5月", 37200, "2026-06-10");
   const paid = await page.evaluate(
     () =>
       JSON.parse(localStorage.getItem("__fake_supa_db__")).tables.payments.find(

@@ -69,22 +69,31 @@
      並べる順（2026-11-02 司さん「それでやれ」＝MF・弥生の 5項目。前の「今回お支払額」の 形は やめた）:
        合計（今月分）→ 前回ご請求額 → −ご入金額 → 繰越金額 → 今回ご請求額
      ・★前回ご請求額★ ＝ 前の 月の 紙の 今回ご請求額
-     ・★ご入金額★     ＝ 前回の 請求書（前の 月の 行）に 記録した 入金。★その 月への 入金は 載せない★
-     ・★繰越金額★     ＝ 当月より前の（請求 − 入金）の残り
+     ・★ご入金額★     ＝ ★その 月の 中に 入った 入金★（入金日で 数える・どの 月の 行に 記録したかは 見ない）
+     ・★繰越金額★     ＝ 前回ご請求額 − ご入金額
      ・★今回ご請求額★ ＝ 繰越金額 ＋ 今月分（＝紙の 上の 大きい 額）
-     ・入金は「払ってもらった 請求書の 月の 行」に 記録する（司さん 2026-11-02）
+     ★入金は 入金日で 数える★ 2026-11-02（司さん「そんなことにならんようにしろ」）
+       MF の 定義＝入金額は その 紙の 締め（月末）までに 入った 入金。
+       ⇒ 払い終えた 月を 出し直しても、その 後に 入った 入金は 載らない（紙が 変わらない）
+       ⇒ 前は「受け取った 月の 行」に 記録して いた 入金も、二重に 請求しない（行で 数えると 最初の 1回 多く 請求した）
+     kako    ＝ 当月より 前の 月の [{ month, seikyu, nyukin }]（nyukin＝その 月の 中に 入った 入金）
+     uketori ＝ 当月の 中に 入った 入金（当月の 紙の ご入金額）
      ★0円と書かない★（指示役の合格条件）
        前回の請求が1件も無い     → kurikoshi=null・riyu="前回の請求はありません"
        入金が読めない（不明）    → nyukin=null・riyu に "入金は未確認"
        ＝「無い」と「0円」は別物。0円と書くと 払い忘れと区別が付かなくなる。
      kako = [{ month, seikyu, nyukin }]  seikyu/nyukin が null なら「不明」 */
-  function carryoverOf(kako, konkaiSeikyu) {
+  function carryoverOf(kako, konkaiSeikyu, uketori) {
     var mae = (kako || []).filter(function (k) {
       return k && k.month;
     });
+    // 前回の 請求＝明細の 在る 月（入金だけ 入った 月＝nyukinDake は 数えない）
+    var seikyuNoTsuki = mae.filter(function (k) {
+      return !k.nyukinDake;
+    });
     var riyu = [];
     var kurikoshi = null;
-    if (!mae.length) {
+    if (!seikyuNoTsuki.length) {
       riyu.push("前回の請求はありません");
     } else if (
       mae.some(function (k) {
@@ -104,17 +113,17 @@
       }, 0);
     }
     var konkai = Number(konkaiSeikyu) || 0;
-    // ★その 月の 紙に その 月への 入金は 載せない★ 2026-11-02（司さん「それでやれ」＝MF・弥生の 5項目）
-    //   ご入金額＝前回の 請求書（kako の 最後の 月の 行）への 入金。その 月の 入金は 次の 月の 紙に 載る。
-    //   ⇒ 払い終えた 後に 出し直しても 紙は 1円も 変わらない（前は 上が ¥0・払い過ぎで マイナス）
-    var last = mae.length ? mae[mae.length - 1] : null;
-    var nyukin = kurikoshi == null || !last ? null : Number(last.nyukin) || 0;
-    var maeSeikyu = kurikoshi == null ? null : kurikoshi + nyukin; // ＝前の 月の 紙の 今回ご請求額
+    // ★その 月の 紙は その 月の 末日までに 入った 入金だけ 引く★ 2026-11-02（司さん「それでやれ」「そんなことにならんようにしろ」）
+    //   ⇒ 払い終えた 後に 出し直しても 紙は 変わらない（前は 上が ¥0・払い過ぎで マイナス）
+    // ★ここで kurikoshi は「当月より 前の 請求 − 当月より 前に 入った 入金」＝前の 月の 紙の 今回ご請求額★
+    var maeSeikyu = kurikoshi;
+    var nyukin = maeSeikyu == null ? null : Number(uketori) || 0;
+    if (maeSeikyu != null) kurikoshi = maeSeikyu - nyukin;
     var seikyuGaku = kurikoshi == null ? null : kurikoshi + konkai;
     return {
       konkai: konkai, // 今月分（＝合計）
       maeSeikyu: maeSeikyu, // 前回ご請求額（null＝出せない）
-      nyukin: nyukin, // ご入金額＝前回の 請求書への 入金（null＝出せない）
+      nyukin: nyukin, // ご入金額＝当月の 中に 入った 入金（null＝出せない）
       kurikoshi: kurikoshi, // 繰越金額＝前回ご請求額 − ご入金額（null＝出せない）
       seikyuGaku: seikyuGaku, // 今回ご請求額＝繰越金額 ＋ 今月分（null＝出せない）
       riyu: riyu.filter(function (x, i, a) {

@@ -3974,6 +3974,8 @@
             PAYMENTS[CURRENT_ACCOUNT + "::" + r.month + "::" + r.company] = {
               paid: r.paid,
               paidDate: r.paid_date || "",
+              createdAt: r.created_at || "", // 入金日が 空の 時の 月（繰越の ご入金額）
+              entries: Array.isArray(r.entries) ? r.entries : null, // 入金の 回（null＝前からの 記録）
               note: r.memo || "",
               _dbid: r.id,
               uid: r.user_id, // 明細が 0件に なった 月を 出す 時に 自分の 記録だけを 拾う 2026-10-14
@@ -8841,6 +8843,7 @@
         // ★繰越の 会社＝この 月の 紙の 今回ご請求額（紙と 同じ エンジン 1本）★
         var _crPay = _carryFor(co, month);
         var _seikyuGakuOf = MeisaiEngine.ueNoGaku(iv.total, _crPay);
+        var _zenGaku = _kieta ? 0 : zenNyukinGaku(iv); // 全入金で 記録する 額（行の ボタンと 同じ 1本）
         var p = month.split("-");
         document.getElementById("modalTitle").textContent = "入金を記録";
         document.getElementById("modalBody").innerHTML =
@@ -8888,7 +8891,7 @@
                   yen(_crPay.konkai) +
                   "）"
                 : "") +
-              "。この請求書への入金を この行に記録します（前の月の請求書への入金は その月の行へ）。" +
+              "。この請求書への入金を この行に記録します（前の月の請求書への入金は その月の行へ）。紙のご入金額は 入金日の月で数えます。" +
               "一覧の入金済／未入金は 記録を古い月から当てて数えています（この月は " +
               yen(iv.paid) +
               " 入金済・この月の行の記録 " +
@@ -8908,11 +8911,11 @@
               " は そのまま 残っています。</div>"
             : MASTER[co] && MASTER[co].carryover
               ? '<div class="pay-quick">' +
-                (_seikyuGakuOf > (Number(rec.paid) || 0)
+                (_zenGaku > (Number(rec.paid) || 0)
                   ? '<button class="btn btn-ghost btn-sm" id="payNokori" onclick="payFill(' +
-                    _seikyuGakuOf +
-                    ')">請求書の額（' +
-                    yen(_seikyuGakuOf) +
+                    _zenGaku +
+                    ')">全入金（記録 ' +
+                    yen(_zenGaku) +
                     "）</button>"
                   : "") +
                 '<button class="btn btn-ghost btn-sm" onclick="payFill(0)">未入金(0)</button></div>'
@@ -8942,10 +8945,27 @@
                   return h;
                 })() +
                 '<button class="btn btn-ghost btn-sm" onclick="payFill(0)">未入金(0)</button></div>') +
-          '<div class="frow"><div class="flabel">入金日</div>' +
-          '<input class="finput" type="date" id="pay_date" value="' +
-          esc(rec.paidDate || "") +
-          '"></div>' +
+          /* ★繰越の 会社＝入金日の 欄は「今回の 入金日」（空で 出す）＋ これまでの 回を 並べる★ 2026-11-02（対立役 止3）
+               前は 欄に 前の 入金日が 入った まま＝額を 増やして 保存すると 増えた 分に 前の 日が 付き、紙の 月が ずれた */
+          (MASTER[co] && MASTER[co].carryover
+            ? (function () {
+                var kai = payKaiGyou(month, co);
+                return (
+                  (kai
+                    ? '<div class="pay-sub" id="payKai" style="margin:-6px 0 10px;color:#555555;">これまでの入金：' +
+                      esc(kai) +
+                      "</div>"
+                    : "") +
+                  '<div class="frow"><div class="flabel">今回の入金日（空なら今日）</div>' +
+                  '<input class="finput" type="date" id="pay_date" value=""></div>' +
+                  '<div class="pay-sub" style="margin:-6px 0 10px;color:#555555;">' +
+                  "額を増やした分は この日の入金として 紙の その月に数えます。額を減らすと 新しい入金から減らします。日だけ打つと 最後の入金の日を直します。</div>"
+                );
+              })()
+            : '<div class="frow"><div class="flabel">入金日</div>' +
+              '<input class="finput" type="date" id="pay_date" value="' +
+              esc(rec.paidDate || "") +
+              '"></div>') +
           '<div class="frow"><div class="flabel">メモ</div>' +
           '<input class="finput" ' +
           NOFILL +
@@ -8961,6 +8981,18 @@
           iv.total +
           ')">保存</button></div>';
         openModal();
+      }
+      // これまでの 入金の 回を 1行に（例「6/10 ¥50,000・7/20 ¥80,000」）
+      function payKaiGyou(month, co) {
+        var rec = PAYMENTS[payKeyFor(month, co)];
+        if (!rec) return "";
+        return entriesOf(rec, month)
+          .map(function (e) {
+            var p = String(e.hi || "").split("-");
+            var hi = p.length === 3 ? Number(p[1]) + "/" + Number(p[2]) : "日付なし";
+            return hi + " " + yen(e.gaku);
+          })
+          .join("・");
       }
       function payFill(v) {
         var el = document.getElementById("pay_amt");
@@ -8991,14 +9023,19 @@
           payKaita(key);
           keshita = !!snap;
         } else {
-          if (amt >= total && !date) {
-            var d = new Date();
-            date =
-              d.getFullYear() +
-              "-" +
-              ("0" + (d.getMonth() + 1)).slice(-2) +
-              "-" +
-              ("0" + d.getDate()).slice(-2);
+          /* ★入金の 回★ 2026-11-02（対立役 止3）
+               繰越の 会社＝入金日の 欄は「今回の 入金日」（空で 出す）。額を 増やして 空なら 今日の 回。
+                 日を 打った 時だけ 最後の 回の 日を 変える（前は 欄に 前の 日が 入った まま＝増えた 分に 前の 日が 付いた）。
+               繰越を 使わない 会社＝今まで 通り 欄の 日＝入金日（最後の 回の 日も 欄の 日）。 */
+          var _kuri = !!(MASTER[co] && MASTER[co].carryover);
+          var _mae = snap ? entriesOf(snap, month) : [];
+          var _ent;
+          if (_kuri) {
+            _ent = entriesAtarashii(_mae, amt, date || kyouNoHi(), !!date);
+            date = _ent.length ? _ent[_ent.length - 1].hi : date;
+          } else {
+            if (amt >= total && !date) date = kyouNoHi();
+            _ent = entriesAtarashii(_mae, amt, date, true);
           }
           var up = await SB.from("payments")
             .upsert(
@@ -9009,6 +9046,7 @@
                 paid: amt,
                 paid_date: date || null,
                 memo: note,
+                entries: _ent,
                 deleted_at: null,
               },
               { onConflict: "user_id,month,company" }
@@ -9019,7 +9057,14 @@
             cloudErr("入金保存", up.error);
             return;
           }
-          PAYMENTS[key] = { paid: amt, paidDate: date, note: note, _dbid: up.data.id };
+          PAYMENTS[key] = {
+            paid: amt,
+            paidDate: date || "",
+            createdAt: (snap && snap.createdAt) || new Date().toISOString(),
+            entries: _ent,
+            note: note,
+            _dbid: up.data.id,
+          };
           payKaita(key);
         }
         closeModal();
@@ -9060,6 +9105,9 @@
         });
         var atarashii = !iv0 ? Number(total) || 0 : zenNyukinGaku(iv0);
         var _kuriFull = !!(iv0 && MASTER[co] && MASTER[co].carryover);
+        // ★入金の 回★ 増えた 分＝今日の 回（同じ 額なら 回は 変えない）・paid_date＝最後の 回の 日（対立役 止2）
+        var _ent = entriesAtarashii(snap ? entriesOf(snap, month) : [], atarashii, date, false);
+        if (_ent.length) date = _ent[_ent.length - 1].hi || date;
         var up = await SB.from("payments")
           .upsert(
             {
@@ -9069,6 +9117,7 @@
               paid: atarashii,
               paid_date: date,
               memo: (snap && snap.note) || "",
+              entries: _ent,
               deleted_at: null,
             },
             { onConflict: "user_id,month,company" }
@@ -9082,6 +9131,8 @@
         PAYMENTS[key] = {
           paid: atarashii,
           paidDate: date,
+          createdAt: (snap && snap.createdAt) || new Date().toISOString(),
+          entries: _ent,
           note: (snap && snap.note) || "",
           _dbid: up.data.id,
         };
@@ -9092,20 +9143,38 @@
         toastUndo(
           co +
             " を全入金にしました" +
-            (_kuriFull ? "（この月の行の記録 " + yen(atarashii) + "＝請求書の額）" : ""),
+            (_kuriFull ? "（この月の行の記録 " + yen(atarashii) + "）" : ""),
           function () {
             undoIchiken(month, co, snap);
           }
         );
       }
-      /* ★★行の「全入金」で 記録する 額★★（ボタンの 字と 押した 時の 記録を ここ 1本から）
-           繰越の 会社＝この 月の 紙の 今回ご請求額 まで（2026-11-02 司さん「請求書の 月の 行に 記録」）。
-             前は「当てた 後の 足りない 額」＝前の 月が 未入金だと 今月分しか 入らず、紙の 額と 合わなかった。
+      /* ★★「全入金」で 記録する 額★★（行の ボタン・窓の ボタン・押した 時の 記録を ここ 1本から）
+           繰越の 会社＝この 月までの 請求 全部 − 記録した 入金 全部（どの 行・どの 入金日でも）の 残りを この 行に 足す
+             ＝この 月の 請求書（前の 月の 残り込み）を 払い終えた 形（2026-11-02 司さん「請求書の 月の 行に 記録」）。
+             前は「当てた 後の 足りない 額」＝前の 月が 未入金だと 今月分しか 入らなかった。
+             紙の 今回ご請求額 を そのまま 使うと、その 行に 紙を 出す 前に 入った 入金が 在る 時に 足りなくなる。
            繰越を 使わない 会社＝記録 ＋ 足りない 額（今まで 通り）。 */
       function zenNyukinGaku(iv) {
-        if (MASTER[iv.company] && MASTER[iv.company].carryover) {
-          var cr = _carryFor(iv.company, iv.month);
-          return Math.max(iv.paidKiroku, MeisaiEngine.ueNoGaku(iv.total, cr));
+        var co = iv.company;
+        if (MASTER[co] && MASTER[co].carryover) {
+          var seikyu = 0;
+          var made = {};
+          DB.forEach(function (r) {
+            if (r.account_id !== CURRENT_ACCOUNT || r.会社名 !== co || !r.日付) return;
+            var m2 = String(r.日付).slice(0, 7);
+            if (m2 <= iv.month) (made[m2] = made[m2] || []).push(r);
+          });
+          Object.keys(made).forEach(function (m2) {
+            seikyu += MeisaiEngine.invoiceTotals(made[m2], {
+              taxMode: MASTER[co].taxMode,
+            }).goukei;
+          });
+          var nb = nyukinByTsuki(co);
+          var kiroku = Object.keys(nb).reduce(function (t, k) {
+            return t + nb[k];
+          }, 0);
+          return iv.paidKiroku + Math.max(seikyu - kiroku, 0);
         }
         return iv.paidKiroku + Math.max(iv.total - iv.paid, 0);
       }
@@ -9133,6 +9202,8 @@
                 paid: snap.paid,
                 paid_date: snap.paidDate || null,
                 memo: snap.note || "",
+                // ★回も 必ず 送る★（送らない 列は 倉庫に 残る＝前からの 記録の 日を 戻しても 回が 新しい 日の まま・対立役 止1）
+                entries: Array.isArray(snap.entries) ? snap.entries : null,
                 deleted_at: null,
               },
               { onConflict: "user_id,month,company" }
@@ -9146,6 +9217,8 @@
           PAYMENTS[key] = {
             paid: snap.paid,
             paidDate: snap.paidDate,
+            createdAt: snap.createdAt || "",
+            entries: Array.isArray(snap.entries) ? snap.entries : null,
             note: snap.note,
             _dbid: up.data.id,
           };
@@ -9328,6 +9401,106 @@
              ＝前は 控えの 無い 月（全社まとめで 作った 月・控えを 書けなかった 月）を null にして
                紙に「前回の請求額が読めません」と 刷り、その 会社は ずっと 繰越が 出なかった
          ・入金   … PAYMENTS に行が無い月は 0（入金なし）。未確認は null で表す */
+      /* ★★入金は 入金日の 月で 数える★★ 2026-11-02（司さん「そんなことにならんようにしろ」）
+           どの 月の 行に 記録したかは 見ない＝「受け取った 月の 行」に 入れた 前からの 記録でも 二重に 請求しない。
+           入金日が 空なら 記録を 作った 日（created_at）、それも 無ければ 記録した 行の 月。 */
+      function nyukinNoTsuki(rec, gyouNoTsuki) {
+        var d = String((rec && rec.paidDate) || "");
+        if (/^\d{4}-\d{2}/.test(d)) return d.slice(0, 7);
+        var c = String((rec && rec.createdAt) || "");
+        if (/^\d{4}-\d{2}/.test(c)) return c.slice(0, 7);
+        return gyouNoTsuki;
+      }
+      /* ★★入金の 回（entries）★★ 2026-11-02（司さん「列を足してよい」）
+           payments.entries＝[{gaku, hi}]＝1行に 入った 入金の 1回ずつ。紙は 1回ずつ 入金日の 月で 数える
+           （前は 行の 入金日 1つ＝「6/10 一部・7/20 残り」が 全部 7月に 数わり、出し直した 6月の 紙が 多く 請求した）。
+           ★正は paid★（古い 版の 画面は paid と paid_date だけ 書く）：
+             ・entries が 無い＝前からの 記録＝今の 額と 入金日を 1回分
+             ・合計 ≠ paid＝古い 版が 額を 変えた＝足りない 分は paid_date の 回・多い 分は 新しい 回から 削る
+             ・最後の 回の 日 ≠ paid_date＝古い 版が 日を 変えた＝最後の 回を paid_date に 寄せる（対立役 止2）
+           新しい 画面は いつも paid_date＝最後の 回の 日 を 書く。 */
+      function hiDake(s) {
+        var d = String(s || "");
+        if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+        if (/^\d{4}-\d{2}$/.test(d)) return d + "-01";
+        return "";
+      }
+      function entriesKezuru(out, n) {
+        for (var i = out.length - 1; i >= 0 && n > 0; i--) {
+          var g = Math.min(out[i].gaku, n);
+          out[i].gaku -= g;
+          n -= g;
+        }
+        return out.filter(function (e) {
+          return e.gaku > 0;
+        });
+      }
+      function entriesOf(rec, gyouNoTsuki) {
+        var paid = Math.max(0, Math.round(Number(rec && rec.paid) || 0));
+        var pd = hiDake(rec && rec.paidDate);
+        var ichi = pd || hiDake(rec && rec.createdAt) || hiDake(gyouNoTsuki);
+        var out = [];
+        if (rec && Array.isArray(rec.entries)) {
+          rec.entries.forEach(function (e) {
+            var g = Math.round(Number(e && e.gaku));
+            if (!isFinite(g) || g <= 0) return;
+            out.push({ gaku: g, hi: hiDake(e.hi) || ichi });
+          });
+        } else if (paid > 0) out.push({ gaku: paid, hi: ichi });
+        var sum = out.reduce(function (t, e) {
+          return t + e.gaku;
+        }, 0);
+        if (sum < paid) out.push({ gaku: paid - sum, hi: ichi });
+        else if (sum > paid) out = entriesKezuru(out, sum - paid);
+        // 最後の 回の 日 ≠ paid_date＝古い 版が 日だけ 変えた（新しい 画面は 必ず 揃えて 書く）
+        if (out.length && out[out.length - 1].hi !== ichi) out[out.length - 1].hi = ichi;
+        return out;
+      }
+      /* 書く 時の 回：前の 回と 新しい 額の 差で 決める
+           増えた＝{差, hi} を 足す／減った＝新しい 回から 削る／hiKaeta＝最後の 回の 日を hi に する */
+      function entriesAtarashii(mae, newPaid, hi, hiKaeta) {
+        var out = (mae || []).map(function (e) {
+          return { gaku: e.gaku, hi: e.hi };
+        });
+        var sum = out.reduce(function (t, e) {
+          return t + e.gaku;
+        }, 0);
+        newPaid = Math.max(0, Math.round(Number(newPaid) || 0));
+        if (newPaid > sum) out.push({ gaku: newPaid - sum, hi: hi || null });
+        else {
+          if (newPaid < sum) out = entriesKezuru(out, sum - newPaid);
+          if (hiKaeta && out.length) out[out.length - 1].hi = hi || null;
+        }
+        return out;
+      }
+      function kyouNoHi() {
+        var d = new Date();
+        return (
+          d.getFullYear() +
+          "-" +
+          ("0" + (d.getMonth() + 1)).slice(-2) +
+          "-" +
+          ("0" + d.getDate()).slice(-2)
+        );
+      }
+      // その 会社の 入金を 入金日の 月ごとに 足す（1回ずつ）
+      function nyukinByTsuki(co) {
+        var out = {};
+        var mae = CURRENT_ACCOUNT + "::";
+        Object.keys(PAYMENTS).forEach(function (k) {
+          if (k.indexOf(mae) !== 0) return;
+          var rest = k.slice(mae.length); // "YYYY-MM::会社"
+          var gyou = rest.slice(0, 7);
+          if (rest.slice(9) !== co) return;
+          var rec = PAYMENTS[k] || {};
+          entriesOf(rec, gyou).forEach(function (e) {
+            var t = e.hi ? e.hi.slice(0, 7) : nyukinNoTsuki(rec, gyou);
+            out[t] = (out[t] || 0) + e.gaku;
+          });
+        });
+        return out;
+      }
+      // 戻り＝{ kako: 当月より 前の 月の [{month, seikyu, nyukin}], uketori: 当月の 中に 入った 入金 }
       function carryMaterialFor(month, co) {
         var kako = [];
         var rowsBy = {};
@@ -9337,17 +9510,22 @@
           if (m2 < month) (rowsBy[m2] = rowsBy[m2] || []).push(r);
         });
         var m = MASTER[co] || {};
-        Object.keys(rowsBy)
-          .sort()
-          .forEach(function (m2) {
-            var pay = PAYMENTS[CURRENT_ACCOUNT + "::" + m2 + "::" + co];
-            kako.push({
-              month: m2,
-              seikyu: MeisaiEngine.invoiceTotals(rowsBy[m2], { taxMode: m.taxMode }).goukei,
-              nyukin: pay ? Number(pay.paid) || 0 : 0,
-            });
+        var nb = nyukinByTsuki(co);
+        var tsuki = Object.keys(rowsBy);
+        Object.keys(nb).forEach(function (t) {
+          if (t < month && !rowsBy[t]) tsuki.push(t);
+        });
+        tsuki.sort().forEach(function (m2) {
+          kako.push({
+            month: m2,
+            seikyu: rowsBy[m2]
+              ? MeisaiEngine.invoiceTotals(rowsBy[m2], { taxMode: m.taxMode }).goukei
+              : 0,
+            nyukin: nb[m2] || 0,
+            nyukinDake: !rowsBy[m2], // 入金だけ 入った 月（前回の 請求には 数えない）
           });
-        return kako;
+        });
+        return { kako: kako, uketori: nb[month] || 0 };
       }
 
       // ★発行の控えを1行 積む★（明細・自社情報・様式の写しつき）
@@ -9872,8 +10050,9 @@
         var konkai = MeisaiEngine.invoiceTotals(rows, {
           taxMode: MASTER[co].taxMode,
         }).goukei;
-        // ★その 月への 入金は 渡さない★（2026-11-02 司さん＝出し直しても 紙が 変わらない）
-        return MeisaiEngine.carryoverOf(carryMaterialFor(month, co), konkai);
+        // ★入金は 入金日の 月で 数える★（2026-11-02 司さん＝出し直しても 紙が 変わらない・二重に 請求しない）
+        var zai = carryMaterialFor(month, co);
+        return MeisaiEngine.carryoverOf(zai.kako, konkai, zai.uketori);
       }
       function issuerForEngine(co, mo) {
         var s = currentIssuer();

@@ -38,7 +38,12 @@ const TEST_REF = "khawdrnvssdenumbiwfg"; // テストの倉庫(DB-test)
 const PROD_REF = "tnfwipbgfgjaymlszeid"; // ★本番。ここに向いていたら赤★
 
 // 倉庫を見に行くファイル（画面もサーバ側も両方）
-const FILES = ["daikou-seikyu.html", "api/excel.js"];
+//   ★api/ は 名指し しない★（2026-11-03 api/yomu.js を 足した 時、名指しの ままでは 本番へ 向けても 緑だった＝測った）
+const API_FILES = fs
+  .readdirSync(path.join(ROOT, "api"))
+  .filter((f) => f.endsWith(".js"))
+  .map((f) => "api/" + f);
+const FILES = ["daikou-seikyu.html"].concat(API_FILES);
 
 function refsIn(text) {
   const out = [];
@@ -76,9 +81,7 @@ describe("★【テスト】の代行請求アプリが、テストの倉庫だ�
         "★テストが本番の倉庫を見ている＝テストのつもりで司さんの請求データ(明細1105件)を触る★\n" +
           "  ここは【テスト】。見てよいのは DB-test だけ。"
       ).toEqual([]);
-      expect(wrong, "★テストの倉庫(DB-test)以外を見ている＝出る数字が本物でなくなる★").toEqual(
-        []
-      );
+      expect(wrong, "★テストの倉庫(DB-test)以外を見ている＝出る数字が本物でなくなる★").toEqual([]);
     });
   });
 

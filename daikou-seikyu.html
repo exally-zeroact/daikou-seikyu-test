@@ -9944,6 +9944,11 @@
           (otoshi.length ? "・候補にしなかった行：" + esc(otoshi.join("／")) : "") +
           "</div>";
         var kaisha = ksKaisha();
+        // 今 読んでいる CSV の 行ごとの src（その 行 自身は 除いて 使う）
+        var ksSrcGyou = {};
+        r.nyukin.forEach(function (x, xi) {
+          ksSrcGyou[Keshikomi.srcTsukuru(x, x.nanbon)] = xi;
+        });
         r.nyukin.forEach(function (n, i) {
           var zumiGaku = ksKirokuZumi(i, n);
           var nokori = n.gaku - zumiGaku;
@@ -9985,6 +9990,10 @@
             return;
           }
           var nyu = { hi: n.hi, gaku: nokori, meigi: n.meigi };
+          var ksBetsuGyouSrc = {};
+          Object.keys(ksSrcGyou).forEach(function (sk) {
+            if (ksSrcGyou[sk] !== i) ksBetsuGyouSrc[sk] = 1;
+          });
           var koho = Keshikomi.kohoTsukuru(nyu, kaisha);
           if (zumiGaku > 0)
             h +=
@@ -10005,7 +10014,8 @@
             var nj = Keshikomi.nijuu(
               n,
               ksKaiZenbu(null).filter(function (e) {
-                return e.co === k.co || ksOnajiMeisai(e.src, n);
+                // 今 読んでいる CSV の 別の 行の 記録（同じ日・同じ額の 別の 名義）は 外す（3回目の 叩き 注1）
+                return e.co === k.co || (ksOnajiMeisai(e.src, n) && !ksBetsuGyouSrc[e.src]);
               }),
               n.nanbon,
               zumiGaku > 0 ? nokori : 0

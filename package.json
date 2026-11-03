@@ -24,7 +24,7 @@
     ]
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "0.27.3"
+    "@anthropic-ai/sdk": "0.128.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.16.0",

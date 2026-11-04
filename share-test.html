@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="robots" content="noindex" />
+    <title>送り方の試し</title>
+    <style>
+      body {
+        font-family: -apple-system, "Hiragino Sans", sans-serif;
+        margin: 16px;
+        font-size: 17px;
+        line-height: 1.6;
+      }
+      button {
+        display: block;
+        width: 100%;
+        margin: 10px 0;
+        padding: 16px;
+        font-size: 18px;
+        border-radius: 10px;
+        border: 1px solid #888;
+        background: #f4f4f4;
+        text-align: left;
+      }
+      #kankyo,
+      #kekka {
+        font-size: 14px;
+        color: #444;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      ★試しのページ（テスト線だけ・2026-11-04 司さん「LINE で PDF と一緒に変な URL が送られる」）★
+      iPhone の共有の画面に LINE が並ぶか・LINE に何が届くかは 実機でしか 分からない（WebKit は web の共有の
+      ファイルを 中身の無い 仮の入れ物で 渡す＝WKShareSheet.mm）。A〜E を 押して 比べる。本番へは 出さない。
+    -->
+    <h2>送り方の試し</h2>
+    <p>
+      それぞれ押して、共有の画面に <b>LINE が出るか</b>・LINE で自分に送って
+      <b>何が届くか</b>（PDF／字／URL）・<b>プリント</b>が在るか を見てください。
+    </p>
+    <div id="kankyo"></div>
+    <button id="bA">A：PDF だけ</button>
+    <button id="bB">B：PDF ＋ 字（請求書 10月分 見本様）</button>
+    <button id="bC">C：PDF ＋ 題名</button>
+    <button id="bD">D：字だけ（比べる為）</button>
+    <button id="bE">E：今のやり方（PDF を開く→その画面の共有）</button>
+    <div id="kekka"></div>
+    <script>
+      (function () {
+        var standalone =
+          window.navigator.standalone === true ||
+          (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+        document.getElementById("kankyo").textContent =
+          (standalone ? "ホーム画面のアプリで開いています" : "Safari などで開いています") +
+          "／共有の仕組み：" +
+          (navigator.share ? "あり" : "なし");
+
+        // 1枚だけの 小さな PDF（字は「SHARE TEST」）
+        function pdfBytes() {
+          var objs = [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            null,
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+          ];
+          var stream = "BT /F1 36 Tf 150 700 Td (SHARE TEST) Tj ET";
+          objs[3] = "<< /Length " + stream.length + " >>\nstream\n" + stream + "\nendstream";
+          var out = "%PDF-1.4\n";
+          var offs = [];
+          for (var i = 0; i < objs.length; i++) {
+            offs.push(out.length);
+            out += i + 1 + " 0 obj\n" + objs[i] + "\nendobj\n";
+          }
+          var xref = out.length;
+          out += "xref\n0 " + (objs.length + 1) + "\n0000000000 65535 f \n";
+          for (var j = 0; j < offs.length; j++)
+            out += String(offs[j]).padStart(10, "0") + " 00000 n \n";
+          out +=
+            "trailer\n<< /Size " +
+            (objs.length + 1) +
+            " /Root 1 0 R >>\nstartxref\n" +
+            xref +
+            "\n%%EOF\n";
+          return new TextEncoder().encode(out);
+        }
+        function pdfFile() {
+          return new File([pdfBytes()], "請求書_見本_試し.pdf", { type: "application/pdf" });
+        }
+        function kaku(s) {
+          document.getElementById("kekka").textContent = s;
+        }
+        async function okuru(mei, data) {
+          try {
+            if (navigator.canShare && data.files && !navigator.canShare(data)) {
+              kaku(mei + "：この端末は このファイルの共有を 受け付けません（canShare=false）");
+              return;
+            }
+            await navigator.share(data);
+            kaku(mei + "：共有の画面を 閉じました（送った か やめた）");
+          } catch (e) {
+            kaku(mei + "：" + (e && e.name ? e.name : "") + " " + (e && e.message ? e.message : e));
+          }
+        }
+        document.getElementById("bA").onclick = function () {
+          okuru("A", { files: [pdfFile()] });
+        };
+        document.getElementById("bB").onclick = function () {
+          okuru("B", { files: [pdfFile()], text: "請求書 10月分 見本様" });
+        };
+        document.getElementById("bC").onclick = function () {
+          okuru("C", { files: [pdfFile()], title: "請求書 10月分 見本様" });
+        };
+        document.getElementById("bD").onclick = function () {
+          okuru("D", { text: "請求書 10月分 見本様" });
+        };
+        document.getElementById("bE").onclick = function () {
+          // 今の 代行請求書の スマホの道（InvoicePDF.save と 同じ：blob の URL を a.download で 開く）
+          var url = URL.createObjectURL(new Blob([pdfBytes()], { type: "application/pdf" }));
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = "請求書_見本_試し.pdf";
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () {
+            URL.revokeObjectURL(url);
+            a.remove();
+          }, 1500);
+          kaku("E：PDF を開きました。その画面の共有から LINE へ送ってください");
+        };
+      })();
+    </script>
+  </body>
+</html>

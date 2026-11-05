@@ -49,6 +49,27 @@
     <button id="bC">C：PDF ＋ 題名</button>
     <button id="bD">D：字だけ（比べる為）</button>
     <button id="bE">E：今のやり方（PDF を開く→その画面の共有）</button>
+    <!-- ★2026-11-06 足した★（設計前の 対立役 止1・止2）本物は 押してから 共有まで 待ちが 在る
+         （倉庫の 読み直し・番号を 台帳に 書く・初回は 字体 4.7MB＝PC の 回線で 2.3秒）。
+         F＝その 待ちより 長く 15秒 待ってから B／G＝F が 断られた 時に 出る 帯の 釦で 押す（本物と 同じ 2回目）
+         H＝B の 共有の 画面の「プリント」で PDF が 刷られるか -->
+    <h3>待ってから送る（本物は 押してから 少し 待つ）</h3>
+    <button id="bF">F：15秒 待ってから B（押したら 触らずに 待つ）</button>
+    <div
+      id="obiG"
+      style="
+        display: none;
+        border: 2px solid #888;
+        border-radius: 10px;
+        padding: 10px;
+        margin: 10px 0;
+      "
+    >
+      <div id="obiGji">F が 断られました。下の G を 押してください。</div>
+      <button id="bG">G：送る・印刷する（F が 断られた 時の 帯）</button>
+    </div>
+    <h3>印刷</h3>
+    <button id="bH">H：B で 共有 → 「プリント」を 選ぶ</button>
     <div id="kekka"></div>
     <script>
       (function () {
@@ -132,6 +153,48 @@
             a.remove();
           }, 1500);
           kaku("E：PDF を開きました。その画面の共有から LINE へ送ってください");
+        };
+        // ★F＝15秒 待ってから B（本物の 待ちより 長い）★ 断られたら G の 帯を 出す（本物の 帯と 同じ 形）
+        var B_DATA = function () {
+          return { files: [pdfFile()], text: "請求書 10月分 見本様" };
+        };
+        document.getElementById("bF").onclick = function () {
+          document.getElementById("obiG").style.display = "none";
+          var n = 15;
+          kaku("F：あと " + n + " 秒…（触らずに 待ってください）");
+          var t = setInterval(function () {
+            n--;
+            if (n > 0) {
+              kaku("F：あと " + n + " 秒…（触らずに 待ってください）");
+              return;
+            }
+            clearInterval(t);
+            var d = B_DATA();
+            try {
+              navigator.share(d).then(
+                function () {
+                  kaku("F：待った後でも 共有の画面が 開きました（送った か やめた）");
+                },
+                function (e) {
+                  var nm = (e && e.name) || "";
+                  if (nm === "NotAllowedError") {
+                    kaku("F：断られました（NotAllowedError）＝G を 押してください");
+                    document.getElementById("obiG").style.display = "block";
+                  } else kaku("F：" + nm + " " + ((e && e.message) || e));
+                }
+              );
+            } catch (e) {
+              kaku("F：" + ((e && e.name) || "") + " " + ((e && e.message) || e));
+            }
+          }, 1000);
+        };
+        document.getElementById("bG").onclick = function () {
+          okuru("G", B_DATA()).then(function () {
+            document.getElementById("obiG").style.display = "none";
+          });
+        };
+        document.getElementById("bH").onclick = function () {
+          okuru("H（プリントを 選んでください）", B_DATA());
         };
       })();
     </script>

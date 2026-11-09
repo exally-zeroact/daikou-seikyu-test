@@ -1,0 +1,40 @@
+      /* ★入力欄は16px以上★（iOSは16px未満の欄に触れると 勝手に拡大して 戻らない）
+         ＝ズーム禁止(maximum-scale=1)を外した代わりの決まり。新しく足した欄の受け皿。
+         見張り: tests/e2e/zoom-allowed.spec.js */
+      input,
+      select,
+      textarea {
+        font-size: 16px;
+      }
+
+      @media (min-width: 560px) {
+        .modal-ov {
+          align-items: center;
+        }
+        .modal {
+          border-radius: 18px;
+        }
+      }
+
+      /* ===== TOAST ===== */
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 84px;
+        transform: translateX(-50%) translateY(16px);
+        background: #0a5fd0;
+        color: #ffffff;
+        padding: 10px 20px;
+        border-radius: 22px;
+        font-size: 13px;
+        font-weight: 700;
+        opacity: 0;
+        transition: all 0.25s;
+        z-index: 200;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }

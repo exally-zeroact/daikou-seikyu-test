@@ -34,7 +34,3 @@
         pointer-events: none;
         white-space: nowrap;
       }
-      .toast.show {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-      }

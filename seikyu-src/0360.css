@@ -17,20 +17,3 @@
       }
 
       /* ===== TOAST ===== */
-      .toast {
-        position: fixed;
-        left: 50%;
-        bottom: 84px;
-        transform: translateX(-50%) translateY(16px);
-        background: #0a5fd0;
-        color: #ffffff;
-        padding: 10px 20px;
-        border-radius: 22px;
-        font-size: 13px;
-        font-weight: 700;
-        opacity: 0;
-        transition: all 0.25s;
-        z-index: 200;
-        pointer-events: none;
-        white-space: nowrap;
-      }

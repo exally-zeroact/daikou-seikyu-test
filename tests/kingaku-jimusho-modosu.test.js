@@ -34,75 +34,77 @@
 //     戻した後 … ★8本とも 緑★
 //     ⇒★5通り 全部で 赤に なった＝空振りでは ありません★
 // ============================================================
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { describe, it, expect } from 'vitest';
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, it, expect } from "vitest";
 
-const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'daikou-seikyu.html'), 'utf8');
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const HTML = fs.readFileSync(path.join(ROOT, "daikou-seikyu.html"), "utf8");
 
-const ENGINE = await import('../meisai-engine.js');
+const ENGINE = await import("../meisai-engine.js");
 const U = (globalThis.MeisaiEngine || ENGINE.default || ENGINE).utils;
 
 const daikome = (yen) => ({
-  id: 'row-1',
-  会社名: 'テスト商事',
+  id: "row-1",
+  会社名: "テスト商事",
   金額: yen,
-  dk_source: 'daikome',
-  dk_ref: '7e1919ef-4aaa-411e-8db0-ba0424d1fe53:1787385737281:3',
+  dk_source: "daikome",
+  dk_ref: "7e1919ef-4aaa-411e-8db0-ba0424d1fe53:1787385737281:3",
 });
-const teuchi = (yen) => ({ id: 'row-2', 会社名: 'テスト商事', 金額: yen });
+const teuchi = (yen) => ({ id: "row-2", 会社名: "テスト商事", 金額: yen });
 
-describe('★一覧で 金額を 直したら 事務所へ 戻す★', () => {
-  it('★① 金額が 変わったら 戻す★', () => {
-    expect(U.shouldPushFare(daikome(1500), daikome(1800)), '★戻していません★').toBe(true);
+describe("★一覧で 金額を 直したら 事務所へ 戻す★", () => {
+  it("★① 金額が 変わったら 戻す★", () => {
+    expect(U.shouldPushFare(daikome(1500), daikome(1800)), "★戻していません★").toBe(true);
   });
 
-  it('★★② 金額が 同じなら 戻さない（無駄に 倉庫を 触らない）★★', () => {
-    expect(U.shouldPushFare(daikome(1500), daikome(1500)), '★同じなのに 戻しています★').toBe(false);
+  it("★★② 金額が 同じなら 戻さない（無駄に 倉庫を 触らない）★★", () => {
+    expect(U.shouldPushFare(daikome(1500), daikome(1500)), "★同じなのに 戻しています★").toBe(false);
   });
 
-  it('★③ 金額以外だけ 直した時は 戻さない★', () => {
+  it("★③ 金額以外だけ 直した時は 戻さない★", () => {
     const mae = daikome(1500);
-    const ato = Object.assign({}, daikome(1500), { 備考: '会長' });
+    const ato = Object.assign({}, daikome(1500), { 備考: "会長" });
     expect(U.shouldPushFare(mae, ato)).toBe(false);
   });
 
-  it('★★④ 手で入れた行は 戻さない（戻す先が 無い）★★', () => {
-    expect(U.shouldPushFare(teuchi(1500), teuchi(1800)), '★戻す先が 無いのに 戻しています★').toBe(
+  it("★★④ 手で入れた行は 戻さない（戻す先が 無い）★★", () => {
+    expect(U.shouldPushFare(teuchi(1500), teuchi(1800)), "★戻す先が 無いのに 戻しています★").toBe(
       false
     );
   });
 
-  it('★⑤ ダイコメ発でも 戻す先(dk_ref)が 無ければ 戻さない★', () => {
-    const mae = { id: 'x', 金額: 1500, dk_source: 'daikome' };
-    const ato = { id: 'x', 金額: 1800, dk_source: 'daikome' };
+  it("★⑤ ダイコメ発でも 戻す先(dk_ref)が 無ければ 戻さない★", () => {
+    const mae = { id: "x", 金額: 1500, dk_source: "daikome" };
+    const ato = { id: "x", 金額: 1800, dk_source: "daikome" };
     expect(U.shouldPushFare(mae, ato)).toBe(false);
   });
 
-  it('★★⑤-b ダイコメ発の印が 無ければ 戻さない（dk_ref だけ 在っても）★★', () => {
+  it("★★⑤-b ダイコメ発の印が 無ければ 戻さない（dk_ref だけ 在っても）★★", () => {
     // ★この1本が 無いと 「ダイコメ発かどうか」の 守りを 外しても 赤に ならなかった★
     //   （2026-09-03・わざと壊して 気づいた＝dk_ref の 守りに 隠れていた）
-    const mae = { id: 'x', 金額: 1500, dk_ref: 'dev:123:1' };
-    const ato = { id: 'x', 金額: 1800, dk_ref: 'dev:123:1' };
-    expect(U.shouldPushFare(mae, ato), '★ダイコメ発か 見ていません★').toBe(false);
+    const mae = { id: "x", 金額: 1500, dk_ref: "dev:123:1" };
+    const ato = { id: "x", 金額: 1800, dk_ref: "dev:123:1" };
+    expect(U.shouldPushFare(mae, ato), "★ダイコメ発か 見ていません★").toBe(false);
   });
 
-  it('★⑥ 画面が 保存の後に 戻す道を ★実際に 呼んでいる★（読むだけ）★', () => {
-    expect(HTML, '★戻すかどうかを エンジンに 聞いていません★').toMatch(
+  it("★⑥ 画面が 保存の後に 戻す道を ★実際に 呼んでいる★（読むだけ）★", () => {
+    expect(HTML, "★戻すかどうかを エンジンに 聞いていません★").toMatch(
       /MeisaiEngine\.utils\.shouldPushFare|shouldPushFare\(/
     );
-    expect(HTML, '★戻す関数(dk-fix-fare)を 呼んでいません★').toMatch(/dk-fix-fare/);
+    expect(HTML, "★戻す関数(dk-fix-fare)を 呼んでいません★").toMatch(/dk-fix-fare/);
     // ★★呼び出しの 1行が 在るか★★
     //   これが 無いと ★呼ぶ所を 消しても 緑のまま★だった（2026-09-03・わざと壊して 気づいた）
-    expect(HTML, '★保存の後に 呼ぶ 1行が ありません★').toMatch(/await _jimushoHeModosu\(r, _mae\)/);
+    expect(HTML, "★保存の後に 呼ぶ 1行が ありません★").toMatch(
+      /await _jimushoHeModosu\(ato, _mae\)/
+    );
   });
 
-  it('★⑦ 戻すのに 失敗しても 保存は 止めない（画面を 白くしない）★', () => {
+  it("★⑦ 戻すのに 失敗しても 保存は 止めない（画面を 白くしない）★", () => {
     // ★戻す所は try/catch の 中★＝倉庫が 落ちていても 一覧の 保存は 通す
     expect(HTML).toMatch(/async function _jimushoHeModosu[\s\S]*?catch \(e\)/);
     // ★鍵の 名前を 間違えると 実物で 落ちる★（1回 間違えた＝SUPABASE_ANON_KEY と 書いていた）
-    expect(HTML, '★この画面に 無い 鍵の名前を 使っています★').not.toMatch(/SUPABASE_ANON_KEY/);
+    expect(HTML, "★この画面に 無い 鍵の名前を 使っています★").not.toMatch(/SUPABASE_ANON_KEY/);
   });
 });

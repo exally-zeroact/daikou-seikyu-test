@@ -83,7 +83,9 @@
       ".login-mark{max-width:190px;height:auto;display:block;margin:0 auto;}",
       ".login-title{font-size:15px;font-weight:700;color:" + c.title + ";margin:10px 0 2px;}",
       ".login-sub{font-size:12px;color:" + c.muted + ";margin-bottom:16px;}",
-      ".login-inp{width:100%;box-sizing:border-box;font-size:16px;padding:13px 14px;",
+      // ★見える高さは 字に合わせる★（2026-11-19 司さん「どのアプリでも何回もゆうてる」）
+      //   16px の字の枠→44px（比2.75）・14px の字のボタン→38px（比2.71）。押す所 44px は 見えない ::after で縦に広げる
+      ".login-inp{width:100%;box-sizing:border-box;font-size:16px;height:44px;padding:0 14px;",
       "border:1px solid " +
         c.line +
         ";border-radius:12px;background:" +
@@ -105,7 +107,9 @@
       "background:none;border:none;padding:4px 6px;text-decoration:underline;cursor:pointer;",
       "font-family:inherit;}",
       ".login-btn{width:100%;box-sizing:border-box;font-family:inherit;font-size:14px;",
-      "font-weight:700;padding:14px 16px;border-radius:14px;cursor:pointer;border:1px solid transparent;}",
+      "font-weight:700;padding:8px 16px;line-height:1.4;min-height:38px;position:relative;",
+      "border-radius:14px;cursor:pointer;border:1px solid transparent;}",
+      '.login-btn::after{content:"";position:absolute;left:0;right:0;top:-3px;bottom:-3px;}',
       ".login-btn-main{background:" + c.accentDark + ";color:#ffffff;}",
       ".login-btn-sub{background:" +
         c.bg +
@@ -172,10 +176,14 @@
   function cleanUrl() {
     try {
       if (!history || !history.replaceState) return;
-      var q = String(location.search || "").replace(RESET_MARK, "").replace(/[?&]+$/, "");
+      var q = String(location.search || "")
+        .replace(RESET_MARK, "")
+        .replace(/[?&]+$/, "");
       if (q === "?") q = "";
       history.replaceState(null, "", location.pathname + q);
-    } catch (e) { /* 消せなくても 動きは止めない */ }
+    } catch (e) {
+      /* 消せなくても 動きは止めない */
+    }
   }
 
   function mount(opt) {
@@ -193,16 +201,16 @@
     function markHTML() {
       return o.logo
         ? '<img class="login-mark" src="' +
-          esc(o.logo) +
-          '" alt="' +
-          esc(o.brand || "Exally") +
-          '">'
+            esc(o.logo) +
+            '" alt="' +
+            esc(o.brand || "Exally") +
+            '">'
         : '<div class="login-logo' +
-          (o.brand ? " alt" : "") +
-          '">' +
-          esc(o.brand || "Exally") +
-          (o.brandSub === "" ? "" : " <span>" + esc(o.brandSub || "エクサリー") + "</span>") +
-          "</div>";
+            (o.brand ? " alt" : "") +
+            '">' +
+            esc(o.brand || "Exally") +
+            (o.brandSub === "" ? "" : " <span>" + esc(o.brandSub || "エクサリー") + "</span>") +
+            "</div>";
     }
     /* ★送りました／新しいパスワードを決める（2026-08-23）★
        これまでは メールは送れるのに 戻ってきた人の受け皿が無く、
@@ -212,7 +220,9 @@
         '<div class="login-card" id="loginResetSent">' +
         markHTML() +
         '<div class="login-title">パスワードの再設定メールを送りました</div>' +
-        '<div class="login-sub">' + esc(email) + "</div>" +
+        '<div class="login-sub">' +
+        esc(email) +
+        "</div>" +
         '<div class="login-mid">このメールに届いた リンクを押すと<br>' +
         "新しいパスワードを決める画面が開きます。</div>" +
         '<button class="login-btn login-btn-sub" type="button" id="btnBackLogin">ログイン画面へ戻る</button>' +
@@ -234,32 +244,36 @@
       );
     }
 
-    function cardHTML() { return '' +
-      '<div class="login-card">' +
-      // 製品名。渡されなければ今までどおり Exally（このrepoの他の画面は1文字も変わらない）
-      markHTML() +
-      '<div class="login-title">' +
-      esc(o.app || "") +
-      "</div>" +
-      '<div class="login-sub">メールでログイン</div>' +
-      '<input class="login-inp" id="loginEmail" type="email" inputmode="email" ' +
-      'autocomplete="email" placeholder="メールアドレス">' +
-      '<input class="login-inp" id="loginPass" type="password" ' +
-      'autocomplete="current-password" placeholder="パスワード（6文字以上）">' +
-      '<div class="login-err" id="loginErr"></div>' +
-      '<button class="login-btn login-btn-main" type="button" id="btnLogin">ログイン</button>' +
-      // 折り返しの位置は自分で決める（機種任せだと語の途中で割れる）
-      '<div class="login-mid">はじめての方は、メールとパスワードを<br>' +
-      "入力してから新規登録ボタンを押して下さい</div>" +
-      '<button class="login-btn login-btn-sub" type="button" id="btnSignup">新規登録</button>' +
-      // パスワードを忘れた人の逃げ道（これが無いと、その店は自分の売上に二度と入れない）
-      (sb && sb.auth && sb.auth.resetPasswordForEmail
-        ? '<div><button class="login-forgot" type="button" id="btnForgot">パスワードを忘れた</button></div>'
-        : "") +
-      '<div class="login-note">' +
-      esc(o.note || "一度ログインすれば、次からは自動で入れます。") +
-      "</div>" +
-      "</div>"; }
+    function cardHTML() {
+      return (
+        "" +
+        '<div class="login-card">' +
+        // 製品名。渡されなければ今までどおり Exally（このrepoの他の画面は1文字も変わらない）
+        markHTML() +
+        '<div class="login-title">' +
+        esc(o.app || "") +
+        "</div>" +
+        '<div class="login-sub">メールでログイン</div>' +
+        '<input class="login-inp" id="loginEmail" type="email" inputmode="email" ' +
+        'autocomplete="email" placeholder="メールアドレス">' +
+        '<input class="login-inp" id="loginPass" type="password" ' +
+        'autocomplete="current-password" placeholder="パスワード（6文字以上）">' +
+        '<div class="login-err" id="loginErr"></div>' +
+        '<button class="login-btn login-btn-main" type="button" id="btnLogin">ログイン</button>' +
+        // 折り返しの位置は自分で決める（機種任せだと語の途中で割れる）
+        '<div class="login-mid">はじめての方は、メールとパスワードを<br>' +
+        "入力してから新規登録ボタンを押して下さい</div>" +
+        '<button class="login-btn login-btn-sub" type="button" id="btnSignup">新規登録</button>' +
+        // パスワードを忘れた人の逃げ道（これが無いと、その店は自分の売上に二度と入れない）
+        (sb && sb.auth && sb.auth.resetPasswordForEmail
+          ? '<div><button class="login-forgot" type="button" id="btnForgot">パスワードを忘れた</button></div>'
+          : "") +
+        '<div class="login-note">' +
+        esc(o.note || "一度ログインすれば、次からは自動で入れます。") +
+        "</div>" +
+        "</div>"
+      );
+    }
 
     var $ = function (id) {
       return document.getElementById(id);
@@ -393,12 +407,19 @@
         if (ev.key === "Enter") setNewPass();
       };
     }
-    function showLoginForm() { ov.innerHTML = cardHTML(); bindCard(); }
+    function showLoginForm() {
+      ov.innerHTML = cardHTML();
+      bindCard();
+    }
     function showResetSent(email) {
       ov.innerHTML = sentHTML(email);
       $("btnBackLogin").onclick = showLoginForm;
     }
-    function showResetForm() { ov.innerHTML = resetHTML(); bindReset(); show(); }
+    function showResetForm() {
+      ov.innerHTML = resetHTML();
+      bindReset();
+      show();
+    }
 
     if (isRecovery()) showResetForm();
     else showLoginForm();
@@ -406,10 +427,15 @@
     try {
       if (sb && sb.auth && sb.auth.onAuthStateChange) {
         sb.auth.onAuthStateChange(function (ev) {
-          if (ev === "PASSWORD_RECOVERY") { recoveryOn = true; showResetForm(); }
+          if (ev === "PASSWORD_RECOVERY") {
+            recoveryOn = true;
+            showResetForm();
+          }
         });
       }
-    } catch (e) { /* 合図が無い版でも 目印で拾えるので止めない */ }
+    } catch (e) {
+      /* 合図が無い版でも 目印で拾えるので止めない */
+    }
 
     return { show: show, hide: hide, error: err, el: ov, isRecovery: isRecovery };
   }
